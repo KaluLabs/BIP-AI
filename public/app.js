@@ -6,7 +6,7 @@ const $=(id)=>document.getElementById(id);
 const esc=(value='')=>String(value).replace(/[&<>'\"]/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const when=(value)=>value?new Date(value).toLocaleString():'—';
 const browserTimezone=()=>Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC';
-const statusClass=(value='')=>/pass|ready|approved|succeeded|published|healthy|high/i.test(value)?'good':/review|pending|medium|requested|authorized|planned|handed_off|overdue|warning/i.test(value)?'warn':/block|fail|failed|denied|expired|degraded/i.test(value)?'bad':'muted';
+const statusClass=(value='')=>/pass|ready|approved|succeeded|published|completed|healthy|high/i.test(value)?'good':/review|pending|medium|requested|accepted|authorized|planned|handed_off|retryable|overdue|warning/i.test(value)?'warn':/block|fail|failed|denied|expired|degraded/i.test(value)?'bad':'muted';
 const pill=(value)=>`<span class="pill ${statusClass(value)}">${esc(value||'unknown')}</span>`;
 
 const DEFAULT_QUERY={
