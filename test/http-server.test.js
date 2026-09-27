@@ -40,7 +40,7 @@ test('campaign detail includes immutable version history', async () => {
 
 test('mutations require CSRF header', async () => {
   const f=await fixture();
-  try { const {response}=await jsonFetch(`${f.base}/api/campaigns/${f.campaign.id}/approve`,{method:'POST',headers:{'content-type':'application/json'},body:'{}'}); assert.equal(response.status,403); }
+  try { const {response}=await jsonFetch(`${f.base}/api/campaigns/${f.campaign.id}/approve`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({version:f.campaign.version,contentHash:f.campaign.contentHash})}); assert.equal(response.status,403); }
   finally { await new Promise(r=>f.server.close(r)); f.store.close(); }
 });
 
