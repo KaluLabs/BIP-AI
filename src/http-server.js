@@ -195,8 +195,14 @@ export function createBipServer({ store, projects, app = null, pagFactory = null
         const campaign=applyEditorial(campaignOr404(store,id),body); store.saveCampaignVersion(campaign); return json(res,200,{campaign});
       }
       if (req.method === 'POST' && /^\/api\/campaigns\/[^/]+\/approve$/.test(path)) {
-        requireCsrf(req); const id=decodeURIComponent(path.split('/')[3]); const campaign=approveCampaign(campaignOr404(store,id));
-        store.updateCampaignState(campaign); return json(res,200,{campaign});
+        requireCsrf(req);
+        const id=decodeURIComponent(path.split('/')[3]);
+        const body=await bodyJson(req);
+        const current=campaignOr404(store,id);
+        const exact=exactCampaignVersion(current,body);
+        const campaign=approveCampaign(exact);
+        store.updateCampaignState(campaign);
+        return json(res,200,{campaign});
       }
       if (req.method === 'POST' && /^\/api\/campaigns\/[^/]+\/draft\/regenerate$/.test(path)) {
         requireCsrf(req); const id=decodeURIComponent(path.split('/')[3]); const provider=draftProviderFactory ? draftProviderFactory() : null;
