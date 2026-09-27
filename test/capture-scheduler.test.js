@@ -369,7 +369,7 @@ test('configured GitHub source persists its own cursor and respects source poll 
       cursor: {
         repository: 'victorkay97/BIP-AI',
         events: { id: '10', etag: '"e"' },
-        workflows: { id: '20', etag: '"w"' }
+        workflows: { key: '20:1:2026-09-27T10:00:00.000Z', etag: '"w"' }
       },
       meta: { remaining: 0, nextPollMs: 300000 }
     };
@@ -380,7 +380,7 @@ test('configured GitHub source persists its own cursor and respects source poll 
     projects,
     pollMs: 60000,
     scan: localScan,
-    githubClient: {},
+    githubClient: { token: 'super-secret-github-token' },
     githubScan,
     githubPollMs: 300000
   });
@@ -392,7 +392,9 @@ test('configured GitHub source persists its own cursor and respects source poll 
     assert.equal(githubCalls, 1);
     assert.equal(store.getCaptureState('git:p').cursor.headSha, 'local-head');
     assert.equal(store.getCaptureState('github:p').cursor.events.id, '10');
+    assert.match(store.getCaptureState('github:p').cursor.workflows.key, /^20:1:/);
     assert.equal(store.getCaptureState('github:p').health.nextAttemptAt, '2026-09-27T10:05:00.000Z');
+    assert.doesNotMatch(JSON.stringify(store.listCaptureStates()), /super-secret-github-token/);
 
     const second = await scheduler.runOnce({ force: false, now: '2026-09-27T10:01:00.000Z' });
     const githubResult = second.results.find((item) => item.sourceType === 'github');
