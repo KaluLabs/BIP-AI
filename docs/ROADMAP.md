@@ -150,13 +150,16 @@ BIP-016 should be finalized after the v0.2 runtime/config surface is stable.
 
 ## v0.2.0 definition of done
 
+Release-candidate evidence: [v0.2.0 readiness](./releases/v0.2.0-readiness.md). Exact candidate commit `23fcd5a3790056519c453fe1128ade65808374eb` passed protected post-merge `main` CI #63 before tagging.
+
+
 - [x] BIP-009 through BIP-016 are complete or explicitly deferred with rationale
-- [ ] migrations are backward-compatible from v0.1.0 state
-- [ ] self-hosted CI is green on the release commit
-- [ ] security/privacy boundaries remain fail-closed
-- [ ] contributor and operator documentation reflect the shipped behavior
-- [ ] changelog and release notes are prepared before tagging
-- [ ] no release is published with known unreviewed credential/private-state exposure
+- [x] migrations are backward-compatible from v0.1.0 state
+- [x] self-hosted CI is green on the release commit
+- [x] security/privacy boundaries remain fail-closed
+- [x] contributor and operator documentation reflect the shipped behavior
+- [x] changelog and release notes are prepared before tagging
+- [x] no release is published with known unreviewed credential/private-state exposure
 
 ## Later
 
