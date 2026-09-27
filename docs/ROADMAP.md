@@ -87,7 +87,7 @@ The goal of v0.2.0 is to make BIP-AI useful as an everyday operating surface rat
   - rescheduling without invalidating content unless the payload changes
   - calendar APIs and Control Room interactions
 
-- [ ] **[BIP-010 — Control Room search, filters, and navigation](https://github.com/victorkay97/BIP-AI/issues/25)**
+- [x] **[BIP-010 — Control Room search, filters, and navigation](https://github.com/victorkay97/BIP-AI/issues/25)**
   - project selector
   - event/campaign search
   - privacy/status/source/platform filters
