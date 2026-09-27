@@ -9,9 +9,10 @@ import { applyEditorial, approveCampaign, exportEditorial } from './editorial.js
 import { PagClient } from './pag-client.js';
 import { requestPagHandoff, reconcilePagHandoff } from './handoff.js';
 import { OpenAICompatibleDraftProvider, regenerateCampaignDrafts } from './drafting.js';
+import { createBipServer, listenBipServer } from './http-server.js';
 
 function usage() {
-  console.log(`BIP-AI v0.5-dev\n\nCommands:\n  event emit <event.json>\n  events list [projectId]\n  campaigns list [projectId]\n  campaigns show <campaignId>\n  campaigns versions <campaignId>\n  campaigns approve <campaignId>\n  editorial export <campaignId> [output.json]\n  editorial import <campaignId> <editorial.json>\n  inbox emit <event.json>\n  inbox process\n  git scan <projectId> <repoPath> [since]\n  projects add <projectId> <repoPath>\n  projects list\n  request-x <campaignId>\n  request-linkedin <campaignId>\n  handoff status <x|linkedin> <campaignId>\n  draft regenerate <campaignId>\n`);
+  console.log(`BIP-AI v0.6-dev\n\nCommands:\n  event emit <event.json>\n  events list [projectId]\n  campaigns list [projectId]\n  campaigns show <campaignId>\n  campaigns versions <campaignId>\n  campaigns approve <campaignId>\n  editorial export <campaignId> [output.json]\n  editorial import <campaignId> <editorial.json>\n  inbox emit <event.json>\n  inbox process\n  git scan <projectId> <repoPath> [since]\n  projects add <projectId> <repoPath>\n  projects list\n  request-x <campaignId>\n  request-linkedin <campaignId>\n  handoff status <x|linkedin> <campaignId>\n  draft regenerate <campaignId>\n  serve\n`);
 }
 
 function print(value) { console.log(JSON.stringify(value, null, 2)); }
@@ -102,6 +103,29 @@ try {
     const result = await regenerateCampaignDrafts(requireCampaign(store, arg1), { provider: createDraftProvider() });
     store.saveCampaignVersion(result.campaign);
     print(result);
+  } else if (command === 'serve') {
+    const host = process.env.BIP_AI_HOST || '127.0.0.1';
+    if (!['127.0.0.1', 'localhost', '::1'].includes(host) && process.env.BIP_AI_ALLOW_REMOTE !== '1') {
+      throw new Error('remote dashboard binding requires BIP_AI_ALLOW_REMOTE=1');
+    }
+    const pagFactory = process.env.PAG_ACTOR_TOKEN ? createPag : null;
+    const server = createBipServer({
+      store, projects, pagFactory, draftProviderFactory: createDraftProvider,
+      connections: { x: process.env.BIP_AI_X_CONNECTION_ID || null, linkedin: process.env.BIP_AI_LINKEDIN_CONNECTION_ID || null },
+      storyThreshold: Number(process.env.BIP_AI_STORY_THRESHOLD || 3),
+      safeConfig: {
+        draftProvider: process.env.BIP_AI_DRAFT_PROVIDER || 'deterministic',
+        pagConfigured: Boolean(process.env.PAG_ACTOR_TOKEN),
+        xConnectionConfigured: Boolean(process.env.BIP_AI_X_CONNECTION_ID),
+        linkedinConnectionConfigured: Boolean(process.env.BIP_AI_LINKEDIN_CONNECTION_ID)
+      }
+    });
+    const listening = await listenBipServer(server, { host, port: Number(process.env.BIP_AI_PORT || 8790) });
+    console.log(`BIP-AI Control Room: ${listening.url}`);
+    await new Promise((resolve) => {
+      const stop = () => server.close();
+      process.once('SIGINT', stop); process.once('SIGTERM', stop); server.once('close', resolve);
+    });
   } else {
     usage();
     process.exitCode = 1;
