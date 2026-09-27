@@ -16,6 +16,8 @@ The project follows Semantic Versioning once releases are tagged. During the `0.
 - Strict server-side event/campaign query validation, stable sorting, and pagination.
 - Restart-safe automatic local Git capture with durable SHA checkpoints, per-project health, and capped exponential retry backoff.
 - Capture CLI controls and Control Room capture-health/manual-run surfaces.
+- Optional GitHub activity source for pushes, pull requests, issue closures, releases, and completed CI/workflow success/failure milestones.
+- Composite GitHub repository-event/workflow cursors with ETag polling, conservative private-repository review defaults, and explicit rate-limit handling.
 
 ## 0.1.0 - 2026-09-27
 

@@ -77,3 +77,41 @@ test('external transport can submit a privacy-safe update through the local adap
     assert.doesNotMatch(JSON.stringify(body),/sensitive-message-id|sensitive-jid|sensitive-phone/);
   } finally { await new Promise(r=>server.close(r)); store.close(); }
 });
+
+
+test('project GitHub source can be configured and cleared through CSRF-protected API', async () => {
+  const f=await fixture();
+  try {
+    const denied=await jsonFetch(`${f.base}/api/projects/bip-ai/github`,{
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      body:JSON.stringify({repository:'victorkay97/BIP-AI',visibility:'private'})
+    });
+    assert.equal(denied.response.status,403);
+
+    const configured=await jsonFetch(`${f.base}/api/projects/bip-ai/github`,{
+      method:'POST',
+      headers:{'content-type':'application/json','x-bipai-csrf':'1'},
+      body:JSON.stringify({repository:'victorkay97/BIP-AI',visibility:'private',token:'do-not-store'})
+    });
+    assert.equal(configured.response.status,200);
+    assert.deepEqual(configured.body.project.github,{repository:'victorkay97/BIP-AI',visibility:'private'});
+    assert.doesNotMatch(JSON.stringify(configured.body),/do-not-store/);
+
+    const invalid=await jsonFetch(`${f.base}/api/projects/bip-ai/github`,{
+      method:'POST',
+      headers:{'content-type':'application/json','x-bipai-csrf':'1'},
+      body:JSON.stringify({repository:'not a repository',visibility:'private'})
+    });
+    assert.equal(invalid.response.status,400);
+    assert.match(invalid.body.error,/owner\/repo/);
+
+    const cleared=await jsonFetch(`${f.base}/api/projects/bip-ai/github/clear`,{
+      method:'POST',
+      headers:{'content-type':'application/json','x-bipai-csrf':'1'},
+      body:'{}'
+    });
+    assert.equal(cleared.response.status,200);
+    assert.equal(cleared.body.project.github,undefined);
+  } finally { await new Promise(r=>f.server.close(r)); f.store.close(); }
+});

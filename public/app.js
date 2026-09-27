@@ -140,6 +140,13 @@ function syncFilterControls(){
   const options=['<option value="">All projects</option>',...state.projects.map(p=>`<option value="${esc(p.id)}">${esc(p.name||p.id)}</option>`)];
   project.innerHTML=options.join('');
   project.value=q.project;
+  const githubProject=$('github-project');
+  githubProject.innerHTML=['<option value="">Choose project</option>',...state.projects.map(p=>`<option value="${esc(p.id)}">${esc(p.name||p.id)}</option>`)].join('');
+  if(q.project && state.projects.some(p=>p.id===q.project)) githubProject.value=q.project;
+  const configuredProject=state.projects.find(p=>p.id===githubProject.value);
+  $('github-repository').value=configuredProject?.github?.repository||'';
+  $('github-visibility').value=configuredProject?.github?.visibility||'private';
+  $('github-auth').textContent=state.config.githubTokenConfigured?'token configured':'public access / no token';
   $('filter-q').value=q.q;$('filter-privacy').value=q.privacy;$('filter-source').value=q.source;
   $('filter-platform').value=q.platform;$('filter-status').value=q.status;$('filter-from').value=q.from;$('filter-to').value=q.to;
   $('event-sort').value=q.esort;$('event-order').value=q.eorder;
@@ -158,7 +165,10 @@ function renderMetrics(){
 }
 function renderProjects(){
   const selected=queryState().project;
-  $('projects').innerHTML=state.projects.length?state.projects.map(p=>`<button class="project-card project-select ${selected===p.id?'active':''}" data-project="${esc(p.id)}"><strong>${esc(p.name||p.id)}</strong><span class="subtle">${esc(p.id)}</span><code>${esc(p.path||'')}</code></button>`).join(''):'<p class="subtle">No capture projects configured yet.</p>';
+  $('projects').innerHTML=state.projects.length?state.projects.map(p=>{
+    const github=p.github?.repository?`<span class="github-source-badge">GitHub · ${esc(p.github.repository)} · ${esc(p.github.visibility||'private')}</span>`:'<span class="subtle">GitHub not configured</span>';
+    return `<button class="project-card project-select ${selected===p.id?'active':''}" data-project="${esc(p.id)}"><strong>${esc(p.name||p.id)}</strong><span class="subtle">${esc(p.id)}</span><code>${esc(p.path||'')}</code>${github}</button>`;
+  }).join(''):'<p class="subtle">No capture projects configured yet.</p>';
   document.querySelectorAll('.project-select').forEach(el=>el.addEventListener('click',()=>applyFilters({project:el.dataset.project})));
 }
 function renderCapture(){
@@ -171,21 +181,26 @@ function renderCapture(){
   run.disabled=false;
   const project=queryState().project;
   run.textContent=project?'Run selected project':'Run all now';
-  run.title=project?`Run Git capture for ${project}`:'Run Git capture for all registered projects';
+  run.title=project?`Run all capture sources for ${project}`:'Run all configured capture sources';
   if(state.capture?.error){
     el.innerHTML=`<div class="error-state">${esc(state.capture.error)}</div>`; return;
   }
   const sources=state.capture?.sources||[];
   if(!sources.length){
-    el.innerHTML='<div class="empty-list"><strong>No capture sources yet</strong><span>Add a local project to start automatic Git capture.</span></div>'; return;
+    el.innerHTML='<div class="empty-list"><strong>No capture sources yet</strong><span>Add a project to start automatic capture.</span></div>'; return;
   }
   el.innerHTML=sources.map(source=>{
     const h=source.health||{}; const last=h.lastScan||{};
     const error=h.lastError?`<span class="capture-error">${esc(h.lastError.code)} · ${esc(h.lastError.summary)}</span>`:'';
-    const retry=h.nextAttemptAt?`<span>next retry ${esc(when(h.nextAttemptAt))}</span>`:'';
+    const next=h.nextAttemptAt?`<span>${h.status==='degraded'?'next retry':'next scan'} ${esc(when(h.nextAttemptAt))}</span>`:'';
     const stats=h.lastScan?`<span>scan ${Number(last.scanned||0)} · accepted ${Number(last.accepted||0)} · duplicates ${Number(last.duplicates||0)}</span>`:'<span>no scan completed yet</span>';
-    const cursor=source.cursor?.headSha?`<code>${esc(source.cursor.headSha.slice(0,12))}</code>`:'<code>no cursor</code>';
-    return `<div class="capture-card"><div class="row spread"><strong>${esc(source.projectName||source.projectId)}</strong>${pill(h.status||'never_run')}</div><div class="capture-meta"><span>last success ${esc(when(h.lastSuccessAt))}</span>${retry}${stats}${error}</div><div class="row spread"><span class="subtle">${esc(source.sourceType)}</span>${cursor}</div></div>`;
+    const cursor=source.cursor?.headSha
+      ? `<code>${esc(source.cursor.headSha.slice(0,12))}</code>`
+      : source.cursor?.events?.id || source.cursor?.workflows?.key
+        ? `<code>events ${esc(source.cursor?.events?.id||'—')} · runs ${esc(source.cursor?.workflows?.key||'—')}</code>`
+        : '<code>no cursor</code>';
+    const sourceLabel=source.sourceType==='github'&&source.repository?`${source.sourceType} · ${source.repository}`:source.sourceType;
+    return `<div class="capture-card"><div class="row spread"><strong>${esc(source.projectName||source.projectId)}</strong>${pill(h.status||'never_run')}</div><div class="capture-meta"><span>last success ${esc(when(h.lastSuccessAt))}</span>${next}${stats}${error}</div><div class="row spread"><span class="subtle">${esc(sourceLabel)}</span>${cursor}</div></div>`;
   }).join('');
 }
 
@@ -324,6 +339,35 @@ $('event-sort').addEventListener('change',()=>applyFilters({esort:$('event-sort'
 $('event-order').addEventListener('change',()=>applyFilters({eorder:$('event-order').value}));
 $('campaign-sort').addEventListener('change',()=>applyFilters({csort:$('campaign-sort').value}));
 $('campaign-order').addEventListener('change',()=>applyFilters({corder:$('campaign-order').value}));
+$('github-project').addEventListener('change',()=>{
+  const project=state.projects.find(p=>p.id===$('github-project').value);
+  $('github-repository').value=project?.github?.repository||'';
+  $('github-visibility').value=project?.github?.visibility||'private';
+});
+$('github-source-form').addEventListener('submit',async(event)=>{
+  event.preventDefault();
+  const projectId=$('github-project').value;
+  if(!projectId){notify('Choose a project first','error');return}
+  try{
+    await api(`/api/projects/${encodeURIComponent(projectId)}/github`,{
+      method:'POST',
+      body:JSON.stringify({repository:$('github-repository').value.trim(),visibility:$('github-visibility').value})
+    });
+    notify('GitHub source saved');
+    await load();
+  }catch(error){notify(error.message,'error')}
+});
+$('clear-github-source').addEventListener('click',async()=>{
+  const projectId=$('github-project').value;
+  if(!projectId){notify('Choose a project first','error');return}
+  try{
+    await api(`/api/projects/${encodeURIComponent(projectId)}/github/clear`,{method:'POST',body:'{}'});
+    $('github-repository').value='';
+    $('github-visibility').value='private';
+    notify('GitHub source cleared');
+    await load();
+  }catch(error){notify(error.message,'error')}
+});
 $('run-capture').addEventListener('click',async()=>{
   const button=$('run-capture'); button.disabled=true;
   try{

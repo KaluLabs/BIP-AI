@@ -72,6 +72,16 @@ export function createBipServer({ store, projects, app = null, pagFactory = null
       if (req.method === 'POST' && path === '/api/projects') {
         requireCsrf(req); const body=await bodyJson(req); return json(res, 201, { project:projects.add(body) });
       }
+      if (req.method === 'POST' && /^\/api\/projects\/[^/]+\/github$/.test(path)) {
+        requireCsrf(req); const id=decodeURIComponent(path.split('/')[3]); projectOr404(projects,id);
+        const body=await bodyJson(req);
+        try { return json(res,200,{project:projects.setGithub(id,body)}); }
+        catch(error) { if(error instanceof TypeError) throw httpError(400,error.message); throw error; }
+      }
+      if (req.method === 'POST' && /^\/api\/projects\/[^/]+\/github\/clear$/.test(path)) {
+        requireCsrf(req); const id=decodeURIComponent(path.split('/')[3]); projectOr404(projects,id);
+        await bodyJson(req); return json(res,200,{project:projects.clearGithub(id)});
+      }
       if (req.method === 'GET' && /^\/api\/projects\/[^/]+$/.test(path)) {
         const id=decodeURIComponent(path.split('/').pop()); const project=projectOr404(projects,id);
         return json(res,200,{ project, events:store.listEvents(id).map((event)=>enrichEvent(event,storyThreshold)), campaigns:store.listCampaigns(id) });

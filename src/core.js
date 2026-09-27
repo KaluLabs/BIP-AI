@@ -54,6 +54,14 @@ export function normalizeProjectEvent(input) {
 }
 
 export function fingerprintEvent(event) {
+  const externalId = event.metadata?.externalId || event.metadata?.github?.externalId || null;
+  if (externalId) {
+    return sha256({
+      projectId: event.projectId,
+      source: event.source,
+      externalId: String(externalId)
+    });
+  }
   return sha256({
     projectId: event.projectId,
     type: event.type,

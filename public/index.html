@@ -96,6 +96,25 @@
             <button class="button" type="submit">Add project</button>
           </form>
           <div id="projects" class="stack"></div>
+          <form id="github-source-form" class="github-source-form">
+            <div class="row spread">
+              <div><p class="eyebrow">GITHUB SOURCE</p><h3>Repository activity</h3></div>
+              <span id="github-auth" class="pill muted">token optional</span>
+            </div>
+            <div class="github-source-grid">
+              <select id="github-project" required><option value="">Choose project</option></select>
+              <input id="github-repository" placeholder="owner/repo" required />
+              <select id="github-visibility">
+                <option value="private">Private / internal</option>
+                <option value="public">Public</option>
+              </select>
+            </div>
+            <div class="actions">
+              <button class="button secondary" type="submit">Save GitHub source</button>
+              <button id="clear-github-source" class="button danger" type="button">Clear</button>
+            </div>
+            <p class="subtle">Private/internal is the safe default. GitHub tokens are read only from the BIP-AI environment.</p>
+          </form>
           <div class="capture-automation">
             <div class="row spread capture-heading">
               <div><p class="eyebrow">AUTOMATION</p><h3>Capture health</h3></div>

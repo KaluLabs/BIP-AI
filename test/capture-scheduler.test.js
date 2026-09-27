@@ -11,8 +11,10 @@ import {
   CaptureScheduler,
   captureStatus,
   runCaptureOnce,
-  runGitCaptureProject
+  runGitCaptureProject,
+  runGitHubCaptureProject
 } from '../src/capture/scheduler.js';
+import { GitHubApiError } from '../src/capture/github.js';
 
 function git(repoPath, args) {
   return execFileSync('git', ['-C', repoPath, ...args], { encoding: 'utf8' }).trim();
@@ -255,13 +257,20 @@ test('capture status reports never-run and persisted source health without crede
   const root = mkdtempSync(join(tmpdir(), 'bip-capture-status-'));
   const store = new BipStore(':memory:');
   const projects = {
-    list: () => [{ id: 'p', name: 'Project P', path: root }],
+    list: () => [{
+      id: 'p',
+      name: 'Project P',
+      path: root,
+      github: { repository: 'victorkay97/BIP-AI', visibility: 'private' }
+    }],
     get: () => null
   };
 
   try {
     const initial = captureStatus(store, projects);
-    assert.equal(initial[0].health.status, 'never_run');
+    assert.equal(initial.length, 2);
+    assert.ok(initial.every((item) => item.health.status === 'never_run'));
+    assert.equal(initial.find((item) => item.sourceType === 'github').repository, 'victorkay97/BIP-AI');
 
     store.saveCaptureState({
       sourceKey: 'git:p',
@@ -317,6 +326,116 @@ test('rewritten Git history recovers through bounded replay and reports a warnin
     assert.equal(recovered.results[0].scan.historyRewritten, true);
     assert.equal(store.getCaptureState('git:p').cursor.headSha, replacement);
     assert.equal(store.listEvents('p').length, 3);
+  } finally {
+    store.close();
+  }
+});
+
+
+test('configured GitHub source persists its own cursor and respects source poll cadence', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'bip-github-scheduler-'));
+  const store = new BipStore(':memory:');
+  const app = new BipAI({ store, storyThreshold: 99 });
+  const project = {
+    id: 'p',
+    name: 'Project P',
+    path: root,
+    github: { repository: 'victorkay97/BIP-AI', visibility: 'private' }
+  };
+  const projects = {
+    list: () => [project],
+    get: (id) => id === 'p' ? project : null
+  };
+  const localScan = async () => ({
+    events: [],
+    cursor: { headSha: 'local-head' },
+    meta: { remaining: 0, historyRewritten: false }
+  });
+  let githubCalls = 0;
+  const githubScan = async () => {
+    githubCalls += 1;
+    return {
+      events: [{
+        id: 'github:evt-1',
+        projectId: 'p',
+        type: 'milestone',
+        summary: 'Merged PR #1',
+        details: 'GitHub pull request #1 merged',
+        source: 'github',
+        occurredAt: '2026-09-27T10:00:00.000Z',
+        privacy: 'REVIEW',
+        metadata: { externalId: 'evt-1' }
+      }],
+      cursor: {
+        repository: 'victorkay97/BIP-AI',
+        events: { id: '10', etag: '"e"' },
+        workflows: { key: '20:1:2026-09-27T10:00:00.000Z', etag: '"w"' }
+      },
+      meta: { remaining: 0, nextPollMs: 300000 }
+    };
+  };
+  const scheduler = new CaptureScheduler({
+    store,
+    app,
+    projects,
+    pollMs: 60000,
+    scan: localScan,
+    githubClient: { token: 'super-secret-github-token' },
+    githubScan,
+    githubPollMs: 300000
+  });
+
+  try {
+    const first = await scheduler.runOnce({ force: false, now: '2026-09-27T10:00:00.000Z' });
+    assert.equal(first.results.length, 2);
+    assert.equal(first.succeeded, 2);
+    assert.equal(githubCalls, 1);
+    assert.equal(store.getCaptureState('git:p').cursor.headSha, 'local-head');
+    assert.equal(store.getCaptureState('github:p').cursor.events.id, '10');
+    assert.match(store.getCaptureState('github:p').cursor.workflows.key, /^20:1:/);
+    assert.equal(store.getCaptureState('github:p').health.nextAttemptAt, '2026-09-27T10:05:00.000Z');
+    assert.doesNotMatch(JSON.stringify(store.listCaptureStates()), /super-secret-github-token/);
+
+    const second = await scheduler.runOnce({ force: false, now: '2026-09-27T10:01:00.000Z' });
+    const githubResult = second.results.find((item) => item.sourceType === 'github');
+    assert.equal(githubResult.attempted, false);
+    assert.equal(githubResult.skipped, 'cadence');
+    assert.equal(githubCalls, 1);
+  } finally {
+    store.close();
+  }
+});
+
+test('GitHub rate-limit hint feeds the bounded shared backoff state', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'bip-github-rate-'));
+  const store = new BipStore(':memory:');
+  const app = new BipAI({ store, storyThreshold: 99 });
+  const project = {
+    id: 'p',
+    name: 'p',
+    path: root,
+    github: { repository: 'victorkay97/BIP-AI', visibility: 'private' }
+  };
+  const scan = async () => {
+    throw new GitHubApiError('github_rate_limited', 'GitHub API rate limit reached', { status: 429, retryAfterMs: 120000 });
+  };
+
+  try {
+    const result = await runGitHubCaptureProject({
+      store,
+      app,
+      project,
+      client: {},
+      scan,
+      now: '2026-09-27T10:00:00.000Z',
+      retryBaseMs: 5000,
+      retryMaxMs: 300000
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.health.lastError.code, 'github_rate_limited');
+    assert.equal(result.health.retryBackoffMs, 120000);
+    assert.equal(result.health.nextAttemptAt, '2026-09-27T10:02:00.000Z');
+    assert.equal(store.getCaptureState('github:p').cursor, null);
   } finally {
     store.close();
   }

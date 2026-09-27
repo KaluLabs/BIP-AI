@@ -5,6 +5,7 @@ import { BipAI } from './pipeline.js';
 import { FileInbox } from './capture/inbox.js';
 import { scanGitActivity } from './capture/git.js';
 import { CaptureScheduler } from './capture/scheduler.js';
+import { GitHubActivityClient } from './capture/github.js';
 import { ProjectRegistry } from './projects.js';
 import { applyEditorial, approveCampaign, exportEditorial } from './editorial.js';
 import { PagClient } from './pag-client.js';
@@ -15,7 +16,7 @@ import { ingestExternalUpdate } from './adapters/external-update.js';
 import { exportApprovedStatusPackage } from './status-export.js';
 
 function usage() {
-  console.log(`BIP-AI v0.2-dev\n\nCommands:\n  event emit <event.json>\n  events list [projectId]\n  campaigns list [projectId]\n  campaigns show <campaignId>\n  campaigns versions <campaignId>\n  campaigns approve <campaignId>\n  editorial export <campaignId> [output.json]\n  editorial import <campaignId> <editorial.json>\n  inbox emit <event.json>\n  inbox process\n  git scan <projectId> <repoPath> [since]\n  projects add <projectId> <repoPath>\n  projects list\n  capture run [projectId]\n  capture status\n  capture start\n  request-x <campaignId>\n  request-linkedin <campaignId>\n  handoff status <x|linkedin> <campaignId>\n  draft regenerate <campaignId>\n  external emit <update.json>\n  status export <campaignId> [output.json]\n  serve\n`);
+  console.log(`BIP-AI v0.2-dev\n\nCommands:\n  event emit <event.json>\n  events list [projectId]\n  campaigns list [projectId]\n  campaigns show <campaignId>\n  campaigns versions <campaignId>\n  campaigns approve <campaignId>\n  editorial export <campaignId> [output.json]\n  editorial import <campaignId> <editorial.json>\n  inbox emit <event.json>\n  inbox process\n  git scan <projectId> <repoPath> [since]\n  projects add <projectId> <repoPath>\n  projects list\n  projects github <projectId> <owner/repo> [public|private]\n  projects github-clear <projectId>\n  capture run [projectId]\n  capture status\n  capture start\n  request-x <campaignId>\n  request-linkedin <campaignId>\n  handoff status <x|linkedin> <campaignId>\n  draft regenerate <campaignId>\n  external emit <update.json>\n  status export <campaignId> [output.json]\n  serve\n`);
 }
 
 function print(value) { console.log(JSON.stringify(value, null, 2)); }
@@ -35,10 +36,16 @@ try {
   const inbox = new FileInbox(process.env.BIP_AI_EVENT_DIR || '.bipai/events');
   const projects = new ProjectRegistry(process.env.BIP_AI_PROJECTS || '.bipai/projects.json');
   const captureEnabled = process.env.BIP_AI_CAPTURE_ENABLED !== '0';
+  const githubClient = new GitHubActivityClient({
+    token: process.env.BIP_AI_GITHUB_TOKEN || null,
+    baseUrl: process.env.BIP_AI_GITHUB_API_BASE_URL || 'https://api.github.com'
+  });
   const captureScheduler = new CaptureScheduler({
     store,
     app,
     projects,
+    githubClient,
+    githubPollMs: Number(process.env.BIP_AI_GITHUB_POLL_MS || 300000),
     pollMs: Number(process.env.BIP_AI_CAPTURE_POLL_MS || 60000),
     batchSize: Number(process.env.BIP_AI_CAPTURE_BATCH_SIZE || 50),
     retryBaseMs: Number(process.env.BIP_AI_CAPTURE_RETRY_BASE_MS || 5000),
@@ -95,6 +102,12 @@ try {
     print(projects.add({ id: arg1, path: arg2 }));
   } else if (command === 'projects' && subcommand === 'list') {
     print(projects.list());
+  } else if (command === 'projects' && subcommand === 'github') {
+    if (!arg1 || !arg2) throw new Error('projects github requires <projectId> <owner/repo> [public|private]');
+    print(projects.setGithub(arg1, { repository: arg2, visibility: arg3 || 'private' }));
+  } else if (command === 'projects' && subcommand === 'github-clear') {
+    if (!arg1) throw new Error('projects github-clear requires <projectId>');
+    print(projects.clearGithub(arg1));
   } else if (command === 'capture' && subcommand === 'run') {
     print(await captureScheduler.runOnce({ projectId: arg1 || null, force: true }));
   } else if (command === 'capture' && subcommand === 'status') {
@@ -155,7 +168,9 @@ try {
         schedulePollMs: Number(process.env.BIP_AI_SCHEDULE_POLL_MS || 30000),
         captureEnabled,
         capturePollMs: captureScheduler.pollMs,
-        captureBatchSize: captureScheduler.batchSize
+        captureBatchSize: captureScheduler.batchSize,
+        githubTokenConfigured: Boolean(process.env.BIP_AI_GITHUB_TOKEN),
+        githubPollMs: captureScheduler.githubPollMs
       }
     });
     const listening = await listenBipServer(server, { host, port: Number(process.env.BIP_AI_PORT || 8790) });

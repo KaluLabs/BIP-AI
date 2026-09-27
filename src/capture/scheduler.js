@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { scanGitIncremental } from './git.js';
+import { classifyGitHubError, scanGitHubActivity } from './github.js';
 
 export const DEFAULT_CAPTURE_POLL_MS = 60_000;
 export const DEFAULT_CAPTURE_BATCH_SIZE = 50;
@@ -78,12 +79,13 @@ function shouldAttempt(state, now, force) {
 
 function successHealth(scan, stats, now) {
   const warning = scan.meta?.warning || (scan.meta?.historyRewritten ? 'history_rewritten' : null);
+  const nextPollMs = Number(scan.meta?.nextPollMs || 0);
   return {
     ...emptyHealth(),
     status: warning ? 'healthy_with_warning' : 'healthy',
     lastAttemptAt: iso(now),
     lastSuccessAt: iso(now),
-    nextAttemptAt: null,
+    nextAttemptAt: nextPollMs > 0 ? new Date(millis(now) + nextPollMs).toISOString() : null,
     consecutiveFailures: 0,
     lastError: null,
     lastScan: {
@@ -100,7 +102,8 @@ function successHealth(scan, stats, now) {
 
 function failureHealth(previous, failure, now, retryBaseMs, retryMaxMs) {
   const failures = Number(previous?.consecutiveFailures || 0) + 1;
-  const delay = backoffMs(failures, retryBaseMs, retryMaxMs);
+  const requested = Number(failure?.retryAfterMs || 0);
+  const delay = Math.min(retryMaxMs, Math.max(backoffMs(failures, retryBaseMs, retryMaxMs), requested));
   return {
     ...emptyHealth(),
     ...previous,
@@ -136,12 +139,30 @@ export function captureStatus(store, projects) {
       health: value?.health || emptyHealth(),
       updatedAt: value?.updatedAt || null
     });
+
+    if (project.github?.repository) {
+      const githubKey = sourceKeyFor(project.id, 'github');
+      const githubValue = storedByKey.get(githubKey);
+      seen.add(githubKey);
+      result.push({
+        sourceKey: githubKey,
+        sourceType: 'github',
+        projectId: project.id,
+        projectName: project.name || project.id,
+        repository: project.github.repository,
+        visibility: project.github.visibility || 'private',
+        cursor: githubValue?.cursor || null,
+        health: githubValue?.health || emptyHealth(),
+        updatedAt: githubValue?.updatedAt || null
+      });
+    }
   }
 
   for (const value of stored) {
     if (seen.has(value.sourceKey)) continue;
     const project = projectById.get(value.projectId);
     if (!project) continue;
+    if (value.sourceType === 'github' && !project.github?.repository) continue;
     result.push({
       sourceKey: value.sourceKey,
       sourceType: value.sourceType,
@@ -186,7 +207,7 @@ export async function runCaptureSource({
       sourceKey: current.sourceKey,
       sourceType,
       attempted: false,
-      skipped: 'backoff',
+      skipped: current.health?.status === 'degraded' ? 'backoff' : 'cadence',
       cursor: current.cursor,
       health: current.health
     };
@@ -287,12 +308,54 @@ export async function runGitCaptureProject({
   });
 }
 
+export async function runGitHubCaptureProject({
+  store,
+  app,
+  project,
+  client,
+  scan = scanGitHubActivity,
+  pollMs = 300_000,
+  now = new Date(),
+  force = false,
+  batchSize = DEFAULT_CAPTURE_BATCH_SIZE,
+  retryBaseMs = DEFAULT_CAPTURE_RETRY_BASE_MS,
+  retryMaxMs = DEFAULT_CAPTURE_RETRY_MAX_MS
+} = {}) {
+  if (!project?.github?.repository) throw new TypeError('project GitHub source is not configured');
+  if (!client) throw new TypeError('GitHub client is required');
+  return runCaptureSource({
+    store,
+    app,
+    project,
+    sourceKey: sourceKeyFor(project.id, 'github'),
+    sourceType: 'github',
+    scan: ({ cursor, limit }) => scan({
+      client,
+      projectId: project.id,
+      repository: project.github.repository,
+      visibility: project.github.visibility || 'private',
+      cursor,
+      limit,
+      pollMs
+    }),
+    classifyError: classifyGitHubError,
+    now,
+    force,
+    batchSize,
+    retryBaseMs,
+    retryMaxMs
+  });
+}
+
 export async function runCaptureOnce({
   store,
   app,
   projects,
   projectId = null,
   scan = scanGitIncremental,
+  githubClient = null,
+  githubScan = scanGitHubActivity,
+  githubPollMs = 300_000,
   now = new Date(),
   force = false,
   batchSize = DEFAULT_CAPTURE_BATCH_SIZE,
@@ -320,6 +383,33 @@ export async function runCaptureOnce({
       retryBaseMs,
       retryMaxMs
     }));
+    if (project.github?.repository) {
+      if (!githubClient) {
+        results.push({
+          projectId: project.id,
+          sourceKey: sourceKeyFor(project.id, 'github'),
+          sourceType: 'github',
+          attempted: false,
+          skipped: 'github_client_unavailable',
+          cursor: store.getCaptureState(sourceKeyFor(project.id, 'github'))?.cursor || null,
+          health: store.getCaptureState(sourceKeyFor(project.id, 'github'))?.health || emptyHealth()
+        });
+      } else {
+        results.push(await runGitHubCaptureProject({
+          store,
+          app,
+          project,
+          client: githubClient,
+          scan: githubScan,
+          pollMs: githubPollMs,
+          now,
+          force,
+          batchSize,
+          retryBaseMs,
+          retryMaxMs
+        }));
+      }
+    }
   }
 
   return {
@@ -343,6 +433,9 @@ export class CaptureScheduler {
     retryBaseMs = DEFAULT_CAPTURE_RETRY_BASE_MS,
     retryMaxMs = DEFAULT_CAPTURE_RETRY_MAX_MS,
     scan = scanGitIncremental,
+    githubClient = null,
+    githubScan = scanGitHubActivity,
+    githubPollMs = 300_000,
     now = () => new Date()
   } = {}) {
     if (!store || !app || !projects) throw new TypeError('store, app, and projects are required');
@@ -364,6 +457,12 @@ export class CaptureScheduler {
     this.retryBaseMs = Number(retryBaseMs);
     this.retryMaxMs = Number(retryMaxMs);
     this.scan = scan;
+    this.githubClient = githubClient;
+    this.githubScan = githubScan;
+    this.githubPollMs = Number(githubPollMs);
+    if (!Number.isFinite(this.githubPollMs) || this.githubPollMs < 60_000) {
+      throw new TypeError('githubPollMs must be at least 60000');
+    }
     this.now = now;
     this.timer = null;
     this.running = false;
@@ -379,6 +478,9 @@ export class CaptureScheduler {
         app: this.app,
         projects: this.projects,
         scan: this.scan,
+        githubClient: this.githubClient,
+        githubScan: this.githubScan,
+        githubPollMs: this.githubPollMs,
         now: options.now || this.now(),
         force: Boolean(options.force),
         projectId: options.projectId || null,
@@ -414,6 +516,8 @@ export class CaptureScheduler {
       batchSize: this.batchSize,
       retryBaseMs: this.retryBaseMs,
       retryMaxMs: this.retryMaxMs,
+      githubPollMs: this.githubPollMs,
+      githubConfigured: Boolean(this.githubClient),
       lastCycle: this.lastCycle,
       sources: captureStatus(this.store, this.projects)
     };
