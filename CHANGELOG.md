@@ -14,6 +14,8 @@ The project follows Semantic Versioning once releases are tagged. During the `0.
 - Control Room editorial calendar with schedule, reschedule, and clear controls.
 - URL-backed Control Room project/search/privacy/source/platform/status/date filters.
 - Strict server-side event/campaign query validation, stable sorting, and pagination.
+- Restart-safe automatic local Git capture with durable SHA checkpoints, per-project health, and capped exponential retry backoff.
+- Capture CLI controls and Control Room capture-health/manual-run surfaces.
 
 ## 0.1.0 - 2026-09-27
 
