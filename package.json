@@ -1,0 +1,17 @@
+{
+  "name": "bip-ai",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "description": "Building in Public AI: evidence-first, privacy-aware project activity to social draft pipeline.",
+  "bin": {
+    "bip-ai": "./src/cli.js"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "start": "node ./src/cli.js",
+    "test": "node --test"
+  }
+}
