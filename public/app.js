@@ -1,6 +1,6 @@
 const state={
-  projects:[],events:[],campaigns:[],calendarCampaigns:[],capture:null,selected:null,config:{},
-  eventPagination:null,campaignPagination:null,loading:false
+  projects:[],events:[],campaigns:[],calendarCampaigns:[],approvalItems:[],capture:null,selected:null,config:{},
+  eventPagination:null,campaignPagination:null,approvalPagination:null,approvalSummary:{total:0},loading:false
 };
 const $=(id)=>document.getElementById(id);
 const esc=(value='')=>String(value).replace(/[&<>'\"]/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -10,9 +10,9 @@ const statusClass=(value='')=>/pass|ready|approved|succeeded|published|healthy|h
 const pill=(value)=>`<span class="pill ${statusClass(value)}">${esc(value||'unknown')}</span>`;
 
 const DEFAULT_QUERY={
-  project:'',q:'',privacy:'',source:'',platform:'',status:'',from:'',to:'',
+  project:'',q:'',privacy:'',source:'',platform:'',status:'',attention:'',from:'',to:'',
   esort:'occurredAt',eorder:'desc',epage:1,
-  csort:'updatedAt',corder:'desc',cpage:1,pageSize:20,campaign:''
+  csort:'updatedAt',corder:'desc',cpage:1,ipage:1,pageSize:20,campaign:''
 };
 
 function queryState(){
@@ -25,6 +25,7 @@ function queryState(){
     source:p.get('source')||'',
     platform:p.get('platform')||'',
     status:p.get('status')||'',
+    attention:p.get('attention')||'',
     from:p.get('from')||'',
     to:p.get('to')||'',
     esort:p.get('esort')||'occurredAt',
@@ -33,6 +34,7 @@ function queryState(){
     csort:p.get('csort')||'updatedAt',
     corder:p.get('corder')||'desc',
     cpage:positive('cpage',1),
+    ipage:positive('ipage',1),
     pageSize:Math.min(100,positive('pageSize',20)),
     campaign:p.get('campaign')||''
   };
@@ -41,7 +43,7 @@ function queryState(){
 function setUrl(values,{resetPages=false,replace=true}={}){
   const current=queryState();
   const next={...current,...values};
-  if(resetPages){next.epage=1;next.cpage=1}
+  if(resetPages){next.epage=1;next.cpage=1;next.ipage=1}
   const params=new URLSearchParams();
   for(const [key,value] of Object.entries(next)){
     const def=DEFAULT_QUERY[key];
@@ -57,10 +59,11 @@ function apiParams(kind,{calendar=false}={}){
   const p=new URLSearchParams();
   const common={q:q.q,projectId:q.project,privacy:q.privacy,source:q.source};
   for(const [key,value] of Object.entries(common))if(value)p.set(key,value);
-  if(kind==='campaigns'){
+  if(kind==='campaigns'||kind==='inbox'){
     if(q.platform)p.set('platform',q.platform);
     if(q.status)p.set('status',q.status);
   }
+  if(kind==='inbox'&&q.attention)p.set('category',q.attention);
   if(calendar){
     const now=new Date(); const start=new Date(now.getFullYear(),now.getMonth(),1); const end=new Date(now.getFullYear(),now.getMonth()+1,0,23,59,59,999);
     p.set('from',start.toISOString()); p.set('to',end.toISOString());
@@ -70,6 +73,8 @@ function apiParams(kind,{calendar=false}={}){
     if(q.to)p.set('to',q.to);
     if(kind==='events'){
       p.set('sort',q.esort);p.set('order',q.eorder);p.set('page',String(q.epage));
+    }else if(kind==='inbox'){
+      p.set('sort','priority');p.set('order','desc');p.set('page',String(q.ipage));
     }else{
       p.set('sort',q.csort);p.set('order',q.corder);p.set('page',String(q.cpage));
     }
@@ -95,6 +100,7 @@ function notify(message,type='success'){const el=$('notice');el.textContent=mess
 function setLoading(loading){
   state.loading=loading;
   if(loading){
+    $('approval-inbox').innerHTML='<div class="loading-state">Loading approval inbox…</div>';
     $('events').innerHTML='<div class="loading-state">Loading events…</div>';
     $('campaigns').innerHTML='<div class="loading-state">Loading campaigns…</div>';
     $('calendar').innerHTML='<div class="loading-state calendar-loading">Loading schedule…</div>';
@@ -110,15 +116,18 @@ async function load(){
     const capturePromise=config.captureEnabled
       ? api('/api/capture/status').catch((error)=>({error:error.message,sources:[]}))
       : Promise.resolve(null);
-    const [events,campaigns,calendar,capture]=await Promise.all([
+    const [events,campaigns,calendar,inbox,capture]=await Promise.all([
       api(`/api/events?${apiParams('events')}`),
       api(`/api/campaigns?${apiParams('campaigns')}`),
       api(`/api/campaigns?${apiParams('campaigns',{calendar:true})}`),
+      api(`/api/approval-inbox?${apiParams('inbox')}`),
       capturePromise
     ]);
     state.events=events.events;state.eventPagination=events.pagination;
     state.campaigns=campaigns.campaigns;state.campaignPagination=campaigns.pagination;
-    state.calendarCampaigns=calendar.campaigns;state.capture=capture;
+    state.calendarCampaigns=calendar.campaigns;
+    state.approvalItems=inbox.items;state.approvalPagination=inbox.pagination;state.approvalSummary=inbox.summary||{total:0};
+    state.capture=capture;
     const selected=queryState().campaign;
     state.selected=selected||null;
     $('health').textContent=health.ok?'Local service online':'Unavailable';$('health').className=`pill ${health.ok?'good':'bad'}`;
@@ -127,6 +136,7 @@ async function load(){
     else renderEmptyDetail();
   }catch(error){
     $('health').textContent='Service error';$('health').className='pill bad';
+    $('approval-inbox').innerHTML=`<div class="error-state">${esc(error.message)}</div>`;
     $('events').innerHTML=`<div class="error-state">${esc(error.message)}</div>`;
     $('campaigns').innerHTML=`<div class="error-state">${esc(error.message)}</div>`;
     $('calendar').innerHTML=`<div class="error-state calendar-loading">${esc(error.message)}</div>`;
@@ -147,21 +157,67 @@ function syncFilterControls(){
   $('github-repository').value=configuredProject?.github?.repository||'';
   $('github-visibility').value=configuredProject?.github?.visibility||'private';
   $('github-auth').textContent=state.config.githubTokenConfigured?'token configured':'public access / no token';
+  $('approval-category').value=q.attention;
   $('filter-q').value=q.q;$('filter-privacy').value=q.privacy;$('filter-source').value=q.source;
   $('filter-platform').value=q.platform;$('filter-status').value=q.status;$('filter-from').value=q.from;$('filter-to').value=q.to;
   $('event-sort').value=q.esort;$('event-order').value=q.eorder;
   $('campaign-sort').value=q.csort;$('campaign-order').value=q.corder;
 }
 
-function render(){renderMetrics();renderProjects();renderCapture();renderEvents();renderCalendar();renderCampaigns()}
+function render(){renderMetrics();renderApprovalInbox();renderProjects();renderCapture();renderEvents();renderCalendar();renderCampaigns()}
 function renderMetrics(){
   const review=state.campaigns.filter(c=>c.editorialStatus==='needs_review'||c.privacyResult==='REVIEW').length;
   const scheduled=state.calendarCampaigns.reduce((count,c)=>count+['x','linkedin'].filter(p=>c.platform?.[p]?.schedule?.status==='planned').length,0);
   const eventTotal=state.eventPagination?.total??state.events.length;
   const campaignTotal=state.campaignPagination?.total??state.campaigns.length;
   const degraded=(state.capture?.sources||[]).filter(x=>x.health?.status==='degraded').length;
-  const html=[['Projects',state.projects.length],['Matching events',eventTotal],['Review on page',review],['Matching campaigns',campaignTotal],['Scheduled this month',scheduled],['Capture degraded',degraded]].map(([label,value])=>`<div class="metric"><div class="value">${value}</div><div class="label">${label}</div></div>`).join('');
+  const attention=state.approvalSummary?.total??state.approvalItems.length;
+  const html=[['Projects',state.projects.length],['Needs attention',attention],['Matching events',eventTotal],['Review on page',review],['Matching campaigns',campaignTotal],['Scheduled this month',scheduled],['Capture degraded',degraded]].map(([label,value])=>`<div class="metric"><div class="value">${value}</div><div class="label">${label}</div></div>`).join('');
   $('metrics').innerHTML=html;
+}
+function ageLabel(ms){
+  const value=Math.max(0,Number(ms)||0);
+  const minutes=Math.floor(value/60000);
+  if(minutes<60)return `${minutes}m old`;
+  const hours=Math.floor(minutes/60);
+  if(hours<48)return `${hours}h old`;
+  return `${Math.floor(hours/24)}d old`;
+}
+function attentionLabel(value){return String(value||'').replaceAll('_',' ')}
+function renderApprovalInbox(){
+  const items=state.approvalItems||[];const page=state.approvalPagination;
+  $('approval-count').textContent=page?`${items.length} shown · ${page.total} actionable`:`${items.length} actionable`;
+  const approve=$('approve-selected');approve.disabled=true;approve.textContent='Approve selected';
+  $('approval-inbox').innerHTML=items.length?items.map(item=>{
+    const platform=item.platform?pill(item.platform==='x'?'X':'LinkedIn'):'';
+    const blockers=(item.approvalBlockers||[]).length?`<div class="approval-blockers">${item.approvalBlockers.map(x=>`<span>${esc(x)}</span>`).join('')}</div>`:'';
+    const evidence=item.provenance?.summary?`<div class="approval-provenance"><strong>Evidence</strong><span>${esc(item.provenance.summary)}</span><small>${esc(item.provenance.source||'manual')} · ${esc(when(item.provenance.occurredAt))}</small></div>`:'';
+    const select=item.canApprove?`<label class="approval-check"><input type="checkbox" class="approval-select" data-campaign="${esc(item.campaignId)}" data-version="${item.campaignVersion}" data-hash="${esc(item.campaignContentHash)}" /> select</label>`:'';
+    const approveOne=item.canApprove?`<button class="button secondary approval-one" data-campaign="${esc(item.campaignId)}" data-version="${item.campaignVersion}" data-hash="${esc(item.campaignContentHash)}">Approve exact v${item.campaignVersion}</button>`:'';
+    return `<article class="approval-item priority-${item.priority}">
+      <div class="row spread"><div class="approval-title"><span class="priority-mark">P${item.priority}</span><strong>${esc(item.title)}</strong></div><div class="row">${platform}${pill(attentionLabel(item.category))}</div></div>
+      <p>${esc(item.reason)}</p>
+      ${blockers}${evidence}
+      <div class="approval-footer"><span class="subtle">${esc(item.projectId)} · campaign v${item.campaignVersion} · ${esc(ageLabel(item.ageMs))}</span><div class="actions">${select}<button class="button secondary approval-open" data-campaign="${esc(item.campaignId)}">Open campaign</button>${approveOne}</div></div>
+    </article>`;
+  }).join(''):'<div class="empty-list"><strong>Nothing needs attention</strong><span>The current filters have no unresolved approval or publishing items.</span></div>';
+  document.querySelectorAll('.approval-open').forEach(el=>el.addEventListener('click',()=>selectCampaign(el.dataset.campaign)));
+  document.querySelectorAll('.approval-select').forEach(el=>el.addEventListener('change',()=>{
+    const count=document.querySelectorAll('.approval-select:checked').length;
+    approve.disabled=count===0;approve.textContent=count?`Approve selected (${count})`:'Approve selected';
+  }));
+  document.querySelectorAll('.approval-one').forEach(el=>el.addEventListener('click',()=>approveInboxTargets([{
+    campaignId:el.dataset.campaign,version:Number(el.dataset.version),contentHash:el.dataset.hash
+  }])));
+  renderPager('approval-pager',page,'ipage');
+}
+async function approveInboxTargets(items){
+  if(!items.length)return;
+  try{
+    const result=await api('/api/approval-inbox/approve',{method:'POST',body:JSON.stringify({items})});
+    notify(`${result.approved.length} campaign${result.approved.length===1?'':'s'} approved`);
+    await load();
+  }catch(error){notify(error.message,'error')}
 }
 function renderProjects(){
   const selected=queryState().project;
@@ -284,6 +340,7 @@ function renderDetail(c,versions){
   const uniqueClaims=[...new Map(claims.map(x=>[`${x.source}|${x.text}`,x])).values()];
   $('campaign-detail').className='';$('campaign-detail').innerHTML=`
     <div class="detail-head"><div><p class="eyebrow">${esc(c.projectId)} · CAMPAIGN</p><h2>${esc(c.storyBrief?.hook||'Campaign')}</h2><p>${esc(c.storyBrief?.whatChanged||'')}</p></div><div class="actions">${pill(c.editorialStatus)}${pill(c.privacyResult)}${pill(c.qualityResult||'PASS')}</div></div>
+    ${c.privacyResult==='REVIEW'?`<div class="section privacy-review"><h3>Privacy review</h3><p>This decision is separate from editorial approval. Record why this captured evidence is safe to publish or must remain blocked.</p><div class="field"><label>REVIEW NOTE</label><textarea id="privacy-review-note" placeholder="Record the privacy decision rationale"></textarea></div><div class="actions"><button class="button" id="privacy-pass">Mark privacy PASS</button><button class="button danger" id="privacy-block">Block publishing</button></div></div>`:''}
     <div class="section"><h3>Approval integrity</h3><div class="row">${approval?pill('approved'):pill('not approved')}<span>Version <strong>${c.version}</strong></span></div><p class="hash">contentHash ${esc(c.contentHash)}</p>${approval?`<p class="hash">approved v${approval.version} · ${esc(approval.contentHash)} · ${esc(when(approval.approvedAt))}</p>`:''}</div>
     <div class="section"><div class="row spread"><h3>Editorial schedule</h3><span class="subtle">Browser timezone: ${esc(browserTimezone())}</span></div><p class="subtle">Scheduling plans a PAG handoff; it never grants publishing authority. Due items still require a current exact-version approval.</p><div class="schedule-grid">${schedulePanel(c,'x','X')}${schedulePanel(c,'linkedin','LinkedIn')}</div></div>
     <div class="section"><h3>Drafts</h3><div class="draft-grid"><div class="field"><label>X THREAD — separate posts with ---</label><textarea id="x-draft">${esc((c.drafts?.x?.posts||[]).join('\n---\n'))}</textarea></div><div class="field"><label>LINKEDIN</label><textarea id="linkedin-draft">${esc(c.drafts?.linkedin?.text||'')}</textarea></div></div><div class="actions"><button class="button secondary" id="save-editorial">Save edits</button><button class="button secondary" id="regen-draft">Regenerate</button><button class="button" id="approve-campaign">Approve exact version</button></div></div>
@@ -300,6 +357,9 @@ function scheduleBody(platform){
   return {scheduledAt:date.toISOString(),timezone:browserTimezone()};
 }
 function wireDetail(c){
+  const privacyPass=$('privacy-pass');const privacyBlock=$('privacy-block');
+  if(privacyPass)privacyPass.onclick=()=>resolvePrivacy(c,'PASS');
+  if(privacyBlock)privacyBlock.onclick=()=>resolvePrivacy(c,'BLOCK');
   $('save-editorial').onclick=()=>mutate(`/api/campaigns/${c.id}/editorial`,{x:{posts:$('x-draft').value.split(/\n---\n/g).map(x=>x.trim()).filter(Boolean)},linkedin:{text:$('linkedin-draft').value}},'Draft edits saved');
   $('regen-draft').onclick=()=>mutate(`/api/campaigns/${c.id}/draft/regenerate`,{},'Draft regenerated');
   $('approve-campaign').onclick=()=>mutate(`/api/campaigns/${c.id}/approve`,{},'Exact campaign version approved');
@@ -311,6 +371,18 @@ function wireDetail(c){
     $(`schedule-${platform}-save`).onclick=()=>{try{mutate(`/api/campaigns/${c.id}/schedule/${platform}`,scheduleBody(platform),`${platform==='x'?'X':'LinkedIn'} schedule saved`)}catch(error){notify(error.message,'error')}};
     const clear=$(`schedule-${platform}-clear`);if(clear)clear.onclick=()=>mutate(`/api/campaigns/${c.id}/schedule/${platform}/clear`,{},`${platform==='x'?'X':'LinkedIn'} schedule cleared`);
   }
+}
+async function resolvePrivacy(c,decision){
+  const note=$('privacy-review-note')?.value.trim();
+  if(!note){notify('A privacy review note is required','error');return}
+  try{
+    await api(`/api/approval-inbox/privacy/${encodeURIComponent(c.id)}`,{
+      method:'POST',
+      body:JSON.stringify({version:c.version,contentHash:c.contentHash,decision,note})
+    });
+    notify(`Privacy review resolved as ${decision}`);
+    await load();
+  }catch(error){notify(error.message,'error')}
 }
 async function mutate(path,body,message){
   try{await api(path,{method:'POST',body:JSON.stringify(body)});notify(message);await load()}catch(error){notify(error.message,'error')}
@@ -332,13 +404,20 @@ $('filter-form').addEventListener('submit',(event)=>{
   });
 });
 $('clear-filters').addEventListener('click',()=>{
-  setUrl({project:'',q:'',privacy:'',source:'',platform:'',status:'',from:'',to:'',campaign:''},{resetPages:true,replace:false});
+  setUrl({project:'',q:'',privacy:'',source:'',platform:'',status:'',attention:'',from:'',to:'',campaign:''},{resetPages:true,replace:false});
   load();
 });
 $('event-sort').addEventListener('change',()=>applyFilters({esort:$('event-sort').value}));
 $('event-order').addEventListener('change',()=>applyFilters({eorder:$('event-order').value}));
 $('campaign-sort').addEventListener('change',()=>applyFilters({csort:$('campaign-sort').value}));
 $('campaign-order').addEventListener('change',()=>applyFilters({corder:$('campaign-order').value}));
+$('approval-category').addEventListener('change',()=>applyFilters({attention:$('approval-category').value}));
+$('approve-selected').addEventListener('click',()=>{
+  const items=[...document.querySelectorAll('.approval-select:checked')].map(el=>({
+    campaignId:el.dataset.campaign,version:Number(el.dataset.version),contentHash:el.dataset.hash
+  }));
+  approveInboxTargets(items);
+});
 $('github-project').addEventListener('change',()=>{
   const project=state.projects.find(p=>p.id===$('github-project').value);
   $('github-repository').value=project?.github?.repository||'';
