@@ -142,7 +142,7 @@ test('GitHub activity scan combines repository and workflow cursors and is repla
 
   assert.equal(first.events.length, 4);
   assert.equal(first.cursor.events.id, '303');
-  assert.equal(first.cursor.workflows.id, '503');
+  assert.match(first.cursor.workflows.key, /^503:1:/);
   assert.equal(first.cursor.repository, 'victorkay97/BIP-AI');
   assert.equal(first.meta.nextPollMs, 300_000);
 
@@ -184,7 +184,7 @@ test('cursor batching catches up oldest-first without skipping new activity', as
   const cursor = {
     repository: 'victorkay97/BIP-AI',
     events: { id: '401', etag: null },
-    workflows: { id: null, etag: null }
+    workflows: { key: null, etag: null }
   };
   const first = await scanGitHubActivity({
     client, projectId: 'p', repository: 'victorkay97/BIP-AI', visibility: 'public', cursor, limit: 2
@@ -220,4 +220,62 @@ test('GitHub client sends token only as request header and classifies rate limit
   assert.doesNotMatch(observed.url, /test-secret-token/);
   const safe = classifyGitHubError(new GitHubApiError('github_transient_error', 'GitHub API is temporarily unavailable', { status: 503 }));
   assert.deepEqual(safe, { code: 'github_transient_error', summary: 'GitHub API is temporarily unavailable', retryAfterMs: null });
+});
+
+
+test('workflow rerun changes the attempt-aware cursor and emits a new milestone', async () => {
+  const firstRun = {
+    id: 700,
+    status: 'completed',
+    conclusion: 'failure',
+    name: 'CI',
+    run_number: 7,
+    run_attempt: 1,
+    head_branch: 'main',
+    html_url: 'https://github.com/x/y/actions/700',
+    updated_at: '2026-09-27T11:00:00.000Z'
+  };
+  const firstClient = {
+    async repositoryEvents() { return { notModified: false, data: [], etag: '"e"', pollIntervalMs: 60000 }; },
+    async workflowRuns() { return { notModified: false, data: { workflow_runs: [firstRun] }, etag: '"w1"', pollIntervalMs: 60000 }; }
+  };
+  const first = await scanGitHubActivity({
+    client: firstClient,
+    projectId: 'p',
+    repository: 'victorkay97/BIP-AI',
+    visibility: 'public'
+  });
+  assert.equal(first.events.length, 1);
+
+  const rerun = {
+    ...firstRun,
+    conclusion: 'success',
+    run_attempt: 2,
+    updated_at: '2026-09-27T11:05:00.000Z'
+  };
+  const secondClient = {
+    async repositoryEvents(repository, { etag }) {
+      return { notModified: true, data: null, etag, pollIntervalMs: 60000 };
+    },
+    async workflowRuns() {
+      return { notModified: false, data: { workflow_runs: [rerun] }, etag: '"w2"', pollIntervalMs: 60000 };
+    }
+  };
+  const second = await scanGitHubActivity({
+    client: secondClient,
+    projectId: 'p',
+    repository: 'victorkay97/BIP-AI',
+    visibility: 'public',
+    cursor: first.cursor
+  });
+  assert.equal(second.events.length, 1);
+  assert.match(second.events[0].summary, /succeeded/);
+  assert.notEqual(second.cursor.workflows.key, first.cursor.workflows.key);
+});
+
+test('GitHub API base URL rejects embedded credentials', () => {
+  assert.throws(
+    () => new GitHubActivityClient({ baseUrl: 'https://user:secret@api.github.com' }),
+    /must not contain credentials/
+  );
 });
