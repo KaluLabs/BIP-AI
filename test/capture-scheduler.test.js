@@ -257,13 +257,20 @@ test('capture status reports never-run and persisted source health without crede
   const root = mkdtempSync(join(tmpdir(), 'bip-capture-status-'));
   const store = new BipStore(':memory:');
   const projects = {
-    list: () => [{ id: 'p', name: 'Project P', path: root }],
+    list: () => [{
+      id: 'p',
+      name: 'Project P',
+      path: root,
+      github: { repository: 'victorkay97/BIP-AI', visibility: 'private' }
+    }],
     get: () => null
   };
 
   try {
     const initial = captureStatus(store, projects);
-    assert.equal(initial[0].health.status, 'never_run');
+    assert.equal(initial.length, 2);
+    assert.ok(initial.every((item) => item.health.status === 'never_run'));
+    assert.equal(initial.find((item) => item.sourceType === 'github').repository, 'victorkay97/BIP-AI');
 
     store.saveCaptureState({
       sourceKey: 'git:p',
@@ -390,7 +397,7 @@ test('configured GitHub source persists its own cursor and respects source poll 
     const second = await scheduler.runOnce({ force: false, now: '2026-09-27T10:01:00.000Z' });
     const githubResult = second.results.find((item) => item.sourceType === 'github');
     assert.equal(githubResult.attempted, false);
-    assert.equal(githubResult.skipped, 'backoff');
+    assert.equal(githubResult.skipped, 'cadence');
     assert.equal(githubCalls, 1);
   } finally {
     store.close();
