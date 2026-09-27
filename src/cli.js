@@ -4,6 +4,7 @@ import { BipStore } from './store.js';
 import { BipAI } from './pipeline.js';
 import { FileInbox } from './capture/inbox.js';
 import { scanGitActivity } from './capture/git.js';
+import { CaptureScheduler } from './capture/scheduler.js';
 import { ProjectRegistry } from './projects.js';
 import { applyEditorial, approveCampaign, exportEditorial } from './editorial.js';
 import { PagClient } from './pag-client.js';
@@ -14,7 +15,7 @@ import { ingestExternalUpdate } from './adapters/external-update.js';
 import { exportApprovedStatusPackage } from './status-export.js';
 
 function usage() {
-  console.log(`BIP-AI v0.2-dev\n\nCommands:\n  event emit <event.json>\n  events list [projectId]\n  campaigns list [projectId]\n  campaigns show <campaignId>\n  campaigns versions <campaignId>\n  campaigns approve <campaignId>\n  editorial export <campaignId> [output.json]\n  editorial import <campaignId> <editorial.json>\n  inbox emit <event.json>\n  inbox process\n  git scan <projectId> <repoPath> [since]\n  projects add <projectId> <repoPath>\n  projects list\n  request-x <campaignId>\n  request-linkedin <campaignId>\n  handoff status <x|linkedin> <campaignId>\n  draft regenerate <campaignId>\n  external emit <update.json>\n  status export <campaignId> [output.json]\n  serve\n`);
+  console.log(`BIP-AI v0.2-dev\n\nCommands:\n  event emit <event.json>\n  events list [projectId]\n  campaigns list [projectId]\n  campaigns show <campaignId>\n  campaigns versions <campaignId>\n  campaigns approve <campaignId>\n  editorial export <campaignId> [output.json]\n  editorial import <campaignId> <editorial.json>\n  inbox emit <event.json>\n  inbox process\n  git scan <projectId> <repoPath> [since]\n  projects add <projectId> <repoPath>\n  projects list\n  capture run [projectId]\n  capture status\n  capture start\n  request-x <campaignId>\n  request-linkedin <campaignId>\n  handoff status <x|linkedin> <campaignId>\n  draft regenerate <campaignId>\n  external emit <update.json>\n  status export <campaignId> [output.json]\n  serve\n`);
 }
 
 function print(value) { console.log(JSON.stringify(value, null, 2)); }
@@ -33,6 +34,16 @@ try {
   const app = new BipAI({ store, storyThreshold: Number(process.env.BIP_AI_STORY_THRESHOLD || 3) });
   const inbox = new FileInbox(process.env.BIP_AI_EVENT_DIR || '.bipai/events');
   const projects = new ProjectRegistry(process.env.BIP_AI_PROJECTS || '.bipai/projects.json');
+  const captureEnabled = process.env.BIP_AI_CAPTURE_ENABLED !== '0';
+  const captureScheduler = new CaptureScheduler({
+    store,
+    app,
+    projects,
+    pollMs: Number(process.env.BIP_AI_CAPTURE_POLL_MS || 60000),
+    batchSize: Number(process.env.BIP_AI_CAPTURE_BATCH_SIZE || 50),
+    retryBaseMs: Number(process.env.BIP_AI_CAPTURE_RETRY_BASE_MS || 5000),
+    retryMaxMs: Number(process.env.BIP_AI_CAPTURE_RETRY_MAX_MS || 300000)
+  });
   const createPag = () => new PagClient({ baseUrl: process.env.PAG_BASE_URL || 'http://127.0.0.1:8787', token: process.env.PAG_ACTOR_TOKEN });
   const createDraftProvider = () => {
     const kind = process.env.BIP_AI_DRAFT_PROVIDER || 'deterministic';
@@ -84,6 +95,17 @@ try {
     print(projects.add({ id: arg1, path: arg2 }));
   } else if (command === 'projects' && subcommand === 'list') {
     print(projects.list());
+  } else if (command === 'capture' && subcommand === 'run') {
+    print(await captureScheduler.runOnce({ projectId: arg1 || null, force: true }));
+  } else if (command === 'capture' && subcommand === 'status') {
+    print(captureScheduler.status());
+  } else if (command === 'capture' && subcommand === 'start') {
+    captureScheduler.start();
+    console.log(`BIP-AI capture scheduler started (poll ${captureScheduler.pollMs}ms)`);
+    await new Promise((resolve) => {
+      const stop = () => { captureScheduler.stop(); resolve(); };
+      process.once('SIGINT', stop); process.once('SIGTERM', stop);
+    });
   } else if (command === 'request-x') {
     const result = await requestPagHandoff(requireCampaign(store, subcommand), 'x', {
       pag: createPag(), connectionId: process.env.BIP_AI_X_CONNECTION_ID || null
@@ -120,6 +142,7 @@ try {
     const pagFactory = process.env.PAG_ACTOR_TOKEN ? createPag : null;
     const server = createBipServer({
       store, projects, app, pagFactory, draftProviderFactory: createDraftProvider,
+      captureScheduler: captureEnabled ? captureScheduler : null,
       connections: { x: process.env.BIP_AI_X_CONNECTION_ID || null, linkedin: process.env.BIP_AI_LINKEDIN_CONNECTION_ID || null },
       storyThreshold: Number(process.env.BIP_AI_STORY_THRESHOLD || 3),
       schedulePollMs: Number(process.env.BIP_AI_SCHEDULE_POLL_MS || 30000),
@@ -129,7 +152,10 @@ try {
         xConnectionConfigured: Boolean(process.env.BIP_AI_X_CONNECTION_ID),
         linkedinConnectionConfigured: Boolean(process.env.BIP_AI_LINKEDIN_CONNECTION_ID),
         schedulingEnabled: Boolean(process.env.PAG_ACTOR_TOKEN),
-        schedulePollMs: Number(process.env.BIP_AI_SCHEDULE_POLL_MS || 30000)
+        schedulePollMs: Number(process.env.BIP_AI_SCHEDULE_POLL_MS || 30000),
+        captureEnabled,
+        capturePollMs: captureScheduler.pollMs,
+        captureBatchSize: captureScheduler.batchSize
       }
     });
     const listening = await listenBipServer(server, { host, port: Number(process.env.BIP_AI_PORT || 8790) });
