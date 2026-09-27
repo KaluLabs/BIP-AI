@@ -465,6 +465,7 @@ export function queryApprovalInbox(items, query) {
   const pageItems = start >= total ? [] : filtered.slice(start, start + query.pageSize);
   return {
     items: pageItems,
+    summary: approvalInboxSummary(filtered),
     pagination: {
       page: query.page,
       pageSize: query.pageSize,
