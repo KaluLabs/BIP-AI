@@ -177,7 +177,12 @@ export function createBipServer({ store, projects, app = null, pagFactory = null
       if (req.method === 'POST' && path === '/api/schedules/run-due') {
         requireCsrf(req); if(!pagFactory) throw httpError(503,'PAG is not configured');
         const body=await bodyJson(req); const at=body.at || new Date().toISOString();
-        return json(res,200,await runDueSchedules(store,{pagFactory,connections,at}));
+        return json(res,200,await runDueSchedules(store,{
+          pagFactory,
+          connections,
+          at,
+          handoff: (campaign, platform, options) => requestPublishingHandoff(store, campaign, platform, options)
+        }));
       }
       if (req.method === 'GET' && /^\/api\/campaigns\/[^/]+$/.test(path)) {
         const id=decodeURIComponent(path.split('/').pop());
