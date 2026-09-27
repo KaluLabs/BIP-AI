@@ -133,7 +133,7 @@ BIP-013 depends on the v0.2 Control Room/query work. BIP-014 depends on BIP-013'
 
 ### Wave D — onboarding and distribution
 
-- [ ] **[BIP-015 — First-run setup experience](https://github.com/victorkay97/BIP-AI/issues/30)**
+- [x] **[BIP-015 — First-run setup experience](https://github.com/victorkay97/BIP-AI/issues/30)**
   - setup/status doctor
   - guided project registration
   - environment/config validation
