@@ -196,8 +196,8 @@ function renderCapture(){
     const stats=h.lastScan?`<span>scan ${Number(last.scanned||0)} · accepted ${Number(last.accepted||0)} · duplicates ${Number(last.duplicates||0)}</span>`:'<span>no scan completed yet</span>';
     const cursor=source.cursor?.headSha
       ? `<code>${esc(source.cursor.headSha.slice(0,12))}</code>`
-      : source.cursor?.events?.id || source.cursor?.workflows?.id
-        ? `<code>events ${esc(source.cursor?.events?.id||'—')} · runs ${esc(source.cursor?.workflows?.id||'—')}</code>`
+      : source.cursor?.events?.id || source.cursor?.workflows?.key
+        ? `<code>events ${esc(source.cursor?.events?.id||'—')} · runs ${esc(source.cursor?.workflows?.key||'—')}</code>`
         : '<code>no cursor</code>';
     const sourceLabel=source.sourceType==='github'&&source.repository?`${source.sourceType} · ${source.repository}`:source.sourceType;
     return `<div class="capture-card"><div class="row spread"><strong>${esc(source.projectName||source.projectId)}</strong>${pill(h.status||'never_run')}</div><div class="capture-meta"><span>last success ${esc(when(h.lastSuccessAt))}</span>${next}${stats}${error}</div><div class="row spread"><span class="subtle">${esc(sourceLabel)}</span>${cursor}</div></div>`;
