@@ -4,9 +4,10 @@ BIP-AI should not be switched to a public repository until every blocking item b
 
 ## Legal
 
-- [ ] Explicitly choose an open-source license.
-- [ ] Add the canonical `LICENSE` file.
-- [ ] Add the selected SPDX/license identifier to package metadata.
+- [x] Explicitly choose an open-source license: Apache License 2.0.
+- [x] Add the canonical `LICENSE` file.
+- [x] Add the selected SPDX/license identifier (`Apache-2.0`) to package metadata.
+- [x] Add project attribution information in `NOTICE`.
 - [ ] Review third-party dependency/action licenses for compatibility.
 
 ## Security and repository settings
