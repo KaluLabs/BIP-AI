@@ -200,16 +200,17 @@ export class BipStore {
     if (attemptId) { clauses.push('attempt_id = ?'); values.push(attemptId); }
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
     const rows = this.db.prepare(`
-      SELECT id, attempt_id, campaign_id, project_id, platform,
+      SELECT rowid AS journal_sequence, id, attempt_id, campaign_id, project_id, platform,
         campaign_version, content_hash, attempt_number,
         event_type, status, retryable, retry_of, idempotency_key,
         pag_intent_id, pag_approval_id, pag_status, args_hash,
         error_code, receipt_json, created_at
       FROM publishing_journal
       ${where}
-      ORDER BY created_at ASC, id ASC
+      ORDER BY journal_sequence ASC
     `).all(...values);
     return rows.map((row) => ({
+      sequence: row.journal_sequence,
       id: row.id,
       attemptId: row.attempt_id,
       campaignId: row.campaign_id,
