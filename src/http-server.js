@@ -74,7 +74,9 @@ export function createBipServer({ store, projects, app = null, pagFactory = null
       }
       if (req.method === 'POST' && /^\/api\/projects\/[^/]+\/github$/.test(path)) {
         requireCsrf(req); const id=decodeURIComponent(path.split('/')[3]); projectOr404(projects,id);
-        const body=await bodyJson(req); return json(res,200,{project:projects.setGithub(id,body)});
+        const body=await bodyJson(req);
+        try { return json(res,200,{project:projects.setGithub(id,body)}); }
+        catch(error) { if(error instanceof TypeError) throw httpError(400,error.message); throw error; }
       }
       if (req.method === 'POST' && /^\/api\/projects\/[^/]+\/github\/clear$/.test(path)) {
         requireCsrf(req); const id=decodeURIComponent(path.split('/')[3]); projectOr404(projects,id);
