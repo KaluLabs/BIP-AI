@@ -271,6 +271,15 @@ export class CaptureScheduler {
   } = {}) {
     if (!store || !app || !projects) throw new TypeError('store, app, and projects are required');
     if (!Number.isFinite(Number(pollMs)) || Number(pollMs) < 1000) throw new TypeError('pollMs must be at least 1000');
+    if (!Number.isInteger(Number(batchSize)) || Number(batchSize) < 1 || Number(batchSize) > 1000) {
+      throw new TypeError('batchSize must be an integer between 1 and 1000');
+    }
+    if (!Number.isFinite(Number(retryBaseMs)) || Number(retryBaseMs) < 1000) {
+      throw new TypeError('retryBaseMs must be at least 1000');
+    }
+    if (!Number.isFinite(Number(retryMaxMs)) || Number(retryMaxMs) < Number(retryBaseMs)) {
+      throw new TypeError('retryMaxMs must be greater than or equal to retryBaseMs');
+    }
     this.store = store;
     this.app = app;
     this.projects = projects;
@@ -309,8 +318,8 @@ export class CaptureScheduler {
 
   start() {
     if (this.timer) return false;
-    void this.runOnce();
-    this.timer = setInterval(() => { void this.runOnce(); }, this.pollMs);
+    void this.runOnce().catch(() => {});
+    this.timer = setInterval(() => { void this.runOnce().catch(() => {}); }, this.pollMs);
     this.timer.unref?.();
     return true;
   }
