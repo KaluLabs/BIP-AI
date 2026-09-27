@@ -169,7 +169,11 @@ function comparePrimitive(a, b) {
 function stableSort(items, valueFor, order) {
   const direction = order === 'asc' ? 1 : -1;
   return [...items].sort((a, b) => {
-    const primary = comparePrimitive(valueFor(a), valueFor(b));
+    const av = valueFor(a);
+    const bv = valueFor(b);
+    if (av == null && bv != null) return 1;
+    if (av != null && bv == null) return -1;
+    const primary = comparePrimitive(av, bv);
     if (primary !== 0) return primary * direction;
     return String(a.id || '').localeCompare(String(b.id || ''));
   });
@@ -230,7 +234,9 @@ export function queryCampaigns(campaigns, query, { sourceByEventId = new Map() }
 
     const dateValue = query.sort === 'scheduledAt'
       ? scheduledAt(campaign, query.platform)
-      : campaign.updatedAt;
+      : query.sort === 'createdAt'
+        ? campaign.createdAt
+        : campaign.updatedAt;
     if (!timestampInRange(dateValue, query.from, query.to)) return false;
     return true;
   });
