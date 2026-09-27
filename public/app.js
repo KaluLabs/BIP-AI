@@ -143,6 +143,9 @@ function syncFilterControls(){
   const githubProject=$('github-project');
   githubProject.innerHTML=['<option value="">Choose project</option>',...state.projects.map(p=>`<option value="${esc(p.id)}">${esc(p.name||p.id)}</option>`)].join('');
   if(q.project && state.projects.some(p=>p.id===q.project)) githubProject.value=q.project;
+  const configuredProject=state.projects.find(p=>p.id===githubProject.value);
+  $('github-repository').value=configuredProject?.github?.repository||'';
+  $('github-visibility').value=configuredProject?.github?.visibility||'private';
   $('github-auth').textContent=state.config.githubTokenConfigured?'token configured':'public access / no token';
   $('filter-q').value=q.q;$('filter-privacy').value=q.privacy;$('filter-source').value=q.source;
   $('filter-platform').value=q.platform;$('filter-status').value=q.status;$('filter-from').value=q.from;$('filter-to').value=q.to;
@@ -178,13 +181,13 @@ function renderCapture(){
   run.disabled=false;
   const project=queryState().project;
   run.textContent=project?'Run selected project':'Run all now';
-  run.title=project?`Run Git capture for ${project}`:'Run Git capture for all registered projects';
+  run.title=project?`Run all capture sources for ${project}`:'Run all configured capture sources';
   if(state.capture?.error){
     el.innerHTML=`<div class="error-state">${esc(state.capture.error)}</div>`; return;
   }
   const sources=state.capture?.sources||[];
   if(!sources.length){
-    el.innerHTML='<div class="empty-list"><strong>No capture sources yet</strong><span>Add a local project to start automatic Git capture.</span></div>'; return;
+    el.innerHTML='<div class="empty-list"><strong>No capture sources yet</strong><span>Add a project to start automatic capture.</span></div>'; return;
   }
   el.innerHTML=sources.map(source=>{
     const h=source.health||{}; const last=h.lastScan||{};
