@@ -1,0 +1,59 @@
+name: Build v0.2.0 release artifacts
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release-artifacts:
+    runs-on: self-hosted
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check out exact release commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git checkout --detach 9d4f550ccedbcd62c5fc56214a910c9a4932b7d6
+          test "$(git rev-parse HEAD)" = "9d4f550ccedbcd62c5fc56214a910c9a4932b7d6"
+          test "$(node -p "require('./package.json').version")" = "0.2.0"
+          test "$(node -p "require('./package.json').private")" = "true"
+
+      - name: Audit exact release tree
+        run: npm run audit:release
+
+      - name: Build release artifacts twice and verify reproducibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run dist -- --version=0.2.0
+          first="$(sha256sum dist/bip-ai-v0.2.0.tar.gz | awk '{print $1}')"
+          mkdir -p /tmp/bip-ai-v020-first
+          cp dist/bip-ai-v0.2.0.tar.gz /tmp/bip-ai-v020-first/
+          cp dist/SHA256SUMS.txt /tmp/bip-ai-v020-first/
+          cp dist/release-manifest.json /tmp/bip-ai-v020-first/
+
+          npm run dist -- --version=0.2.0
+          second="$(sha256sum dist/bip-ai-v0.2.0.tar.gz | awk '{print $1}')"
+          test "$first" = "$second"
+          grep -F "$first  bip-ai-v0.2.0.tar.gz" dist/SHA256SUMS.txt
+          node -e "const m=require('./dist/release-manifest.json'); if(m.version!=='0.2.0'||m.revision!=='9d4f550ccedbcd62c5fc56214a910c9a4932b7d6'||m.npmPublication!==false) process.exit(1); console.log(JSON.stringify(m,null,2))"
+
+          mkdir -p release-assets
+          cp dist/bip-ai-v0.2.0.tar.gz release-assets/
+          cp dist/SHA256SUMS.txt release-assets/
+          cp dist/release-manifest.json release-assets/
+          printf '%s\n' "$first" > release-assets/VERIFIED_SHA256.txt
+
+      - name: Upload verified release bundle
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: bip-ai-v0.2.0-release-assets
+          path: release-assets/
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
