@@ -162,6 +162,7 @@ export function captureStatus(store, projects) {
     if (seen.has(value.sourceKey)) continue;
     const project = projectById.get(value.projectId);
     if (!project) continue;
+    if (value.sourceType === 'github' && !project.github?.repository) continue;
     result.push({
       sourceKey: value.sourceKey,
       sourceType: value.sourceType,
