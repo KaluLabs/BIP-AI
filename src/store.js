@@ -29,6 +29,14 @@ export class BipStore {
         FOREIGN KEY(event_id) REFERENCES events(id)
       );
       CREATE INDEX IF NOT EXISTS idx_campaigns_project ON campaigns(project_id, updated_at DESC);
+      CREATE TABLE IF NOT EXISTS campaign_versions (
+        campaign_id TEXT NOT NULL,
+        version INTEGER NOT NULL,
+        content_hash TEXT NOT NULL,
+        payload_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY(campaign_id, version)
+      );
     `);
   }
 
@@ -57,7 +65,30 @@ export class BipStore {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(campaign.id, campaign.projectId, campaign.eventId, campaign.version, campaign.status,
         JSON.stringify(campaign), campaign.contentHash, campaign.createdAt, campaign.updatedAt);
+    this.db.prepare('INSERT INTO campaign_versions(campaign_id, version, content_hash, payload_json, created_at) VALUES (?, ?, ?, ?, ?)')
+      .run(campaign.id, campaign.version, campaign.contentHash, JSON.stringify(campaign), campaign.updatedAt);
     return campaign;
+  }
+
+  saveCampaignVersion(campaign) {
+    this.db.prepare('UPDATE campaigns SET version = ?, status = ?, payload_json = ?, content_hash = ?, updated_at = ? WHERE id = ?')
+      .run(campaign.version, campaign.status, JSON.stringify(campaign), campaign.contentHash, campaign.updatedAt, campaign.id);
+    this.db.prepare('INSERT INTO campaign_versions(campaign_id, version, content_hash, payload_json, created_at) VALUES (?, ?, ?, ?, ?)')
+      .run(campaign.id, campaign.version, campaign.contentHash, JSON.stringify(campaign), campaign.updatedAt);
+    return campaign;
+  }
+
+  updateCampaignState(campaign) {
+    this.db.prepare('UPDATE campaigns SET status = ?, payload_json = ?, content_hash = ?, updated_at = ? WHERE id = ?')
+      .run(campaign.status, JSON.stringify(campaign), campaign.contentHash, campaign.updatedAt, campaign.id);
+    this.db.prepare('UPDATE campaign_versions SET payload_json = ?, content_hash = ? WHERE campaign_id = ? AND version = ?')
+      .run(JSON.stringify(campaign), campaign.contentHash, campaign.id, campaign.version);
+    return campaign;
+  }
+
+  listCampaignVersions(id) {
+    return this.db.prepare('SELECT payload_json FROM campaign_versions WHERE campaign_id = ? ORDER BY version ASC').all(id)
+      .map((row) => JSON.parse(row.payload_json));
   }
 
   getCampaign(id) {
