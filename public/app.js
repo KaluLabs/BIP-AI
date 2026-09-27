@@ -147,7 +147,7 @@ function renderMetrics(){
   const scheduled=state.calendarCampaigns.reduce((count,c)=>count+['x','linkedin'].filter(p=>c.platform?.[p]?.schedule?.status==='planned').length,0);
   const eventTotal=state.eventPagination?.total??state.events.length;
   const campaignTotal=state.campaignPagination?.total??state.campaigns.length;
-  const html=[['Projects',state.projects.length],['Matching events',eventTotal],['Needs review',review],['Matching campaigns',campaignTotal],['Scheduled this month',scheduled]].map(([label,value])=>`<div class="metric"><div class="value">${value}</div><div class="label">${label}</div></div>`).join('');
+  const html=[['Projects',state.projects.length],['Matching events',eventTotal],['Review on page',review],['Matching campaigns',campaignTotal],['Scheduled this month',scheduled]].map(([label,value])=>`<div class="metric"><div class="value">${value}</div><div class="label">${label}</div></div>`).join('');
   $('metrics').innerHTML=html;
 }
 function renderProjects(){
