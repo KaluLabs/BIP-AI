@@ -175,6 +175,18 @@ export function renderDrafts(storyBrief) {
   };
 }
 
+export function campaignContentHash(campaign) {
+  return sha256({
+    id: campaign.id,
+    projectId: campaign.projectId,
+    eventId: campaign.eventId,
+    version: campaign.version,
+    storyBrief: campaign.storyBrief,
+    drafts: campaign.drafts,
+    privacyResult: campaign.privacyResult
+  });
+}
+
 export function createCampaign(event, evaluation, privacy) {
   const storyBrief = buildStoryBrief(event);
   const drafts = renderDrafts(storyBrief);
@@ -192,6 +204,7 @@ export function createCampaign(event, evaluation, privacy) {
     drafts,
     structuralQuality: { x: { result: 'PASS', findings: [] }, linkedin: { result: 'PASS', findings: [] } },
     editorialQuality: { x: { result: 'PASS', findings: [] }, linkedin: { result: 'PASS', findings: [] } },
+    qualityResult: 'PASS',
     privacyResult: privacy.result,
     privacy,
     platform: {
@@ -202,5 +215,5 @@ export function createCampaign(event, evaluation, privacy) {
     createdAt: now,
     updatedAt: now
   };
-  return { ...body, contentHash: sha256(body) };
+  return { ...body, contentHash: campaignContentHash(body) };
 }
