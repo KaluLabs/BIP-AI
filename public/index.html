@@ -23,6 +23,70 @@
       <section id="notice" class="notice hidden"></section>
       <section class="metrics" id="metrics"></section>
 
+      <section class="panel filter-panel">
+        <div class="panel-head">
+          <div><p class="eyebrow">NAVIGATION</p><h2>Search and filters</h2></div>
+          <span class="pill muted">URL-backed view</span>
+        </div>
+        <form id="filter-form" class="filter-grid">
+          <div class="field filter-search">
+            <label>SEARCH</label>
+            <input id="filter-q" type="search" placeholder="Search events, briefs, drafts…" />
+          </div>
+          <div class="field">
+            <label>PROJECT</label>
+            <select id="filter-project"><option value="">All projects</option></select>
+          </div>
+          <div class="field">
+            <label>PRIVACY</label>
+            <select id="filter-privacy">
+              <option value="">Any privacy</option>
+              <option value="PASS">PASS</option>
+              <option value="REVIEW">REVIEW</option>
+              <option value="BLOCK">BLOCK</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>SOURCE</label>
+            <input id="filter-source" placeholder="manual, git, github…" />
+          </div>
+          <div class="field">
+            <label>PLATFORM</label>
+            <select id="filter-platform">
+              <option value="">Any platform</option>
+              <option value="x">X</option>
+              <option value="linkedin">LinkedIn</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>CAMPAIGN STATUS</label>
+            <select id="filter-status">
+              <option value="">Any status</option>
+              <option value="drafted">drafted</option>
+              <option value="approved">approved</option>
+              <option value="planned">planned</option>
+              <option value="handed_off">handed_off</option>
+              <option value="published">published</option>
+              <option value="failed">failed</option>
+              <option value="needs_review">needs_review</option>
+              <option value="approved_for_handoff">approved_for_handoff</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>FROM</label>
+            <input id="filter-from" type="date" />
+          </div>
+          <div class="field">
+            <label>TO</label>
+            <input id="filter-to" type="date" />
+          </div>
+          <div class="filter-actions">
+            <button class="button" type="submit">Apply</button>
+            <button class="button secondary" id="clear-filters" type="button">Clear filters</button>
+          </div>
+        </form>
+      </section>
+
       <section class="grid two-col">
         <article class="panel">
           <div class="panel-head"><div><p class="eyebrow">CAPTURE</p><h2>Projects</h2></div></div>
@@ -35,27 +99,61 @@
         </article>
 
         <article class="panel">
-          <div class="panel-head"><div><p class="eyebrow">SIGNALS</p><h2>Event timeline</h2></div><span id="event-count" class="pill muted"></span></div>
+          <div class="panel-head panel-head-wrap">
+            <div><p class="eyebrow">SIGNALS</p><h2>Event timeline</h2></div>
+            <div class="panel-tools">
+              <span id="event-count" class="pill muted"></span>
+              <select id="event-sort" aria-label="Event sort">
+                <option value="occurredAt">Event time</option>
+                <option value="projectId">Project</option>
+                <option value="source">Source</option>
+                <option value="privacy">Privacy</option>
+              </select>
+              <select id="event-order" aria-label="Event sort order">
+                <option value="desc">Descending</option>
+                <option value="asc">Ascending</option>
+              </select>
+            </div>
+          </div>
           <div id="events" class="timeline"></div>
+          <div id="event-pager" class="pager"></div>
         </article>
       </section>
 
       <section class="panel">
-        <div class="panel-head"><div><p class="eyebrow">CALENDAR</p><h2>Editorial schedule</h2></div><span class="pill muted">per-platform planned handoffs</span></div>
+        <div class="panel-head"><div><p class="eyebrow">CALENDAR</p><h2>Editorial schedule</h2></div><span class="pill muted">filtered · current month</span></div>
         <div id="calendar" class="calendar"></div>
       </section>
 
       <section class="grid campaign-grid">
         <article class="panel campaign-list-panel">
-          <div class="panel-head"><div><p class="eyebrow">EDITORIAL</p><h2>Campaigns</h2></div><span id="campaign-count" class="pill muted"></span></div>
+          <div class="panel-head panel-head-wrap">
+            <div><p class="eyebrow">EDITORIAL</p><h2>Campaigns</h2></div>
+            <div class="panel-tools vertical-tools">
+              <span id="campaign-count" class="pill muted"></span>
+              <select id="campaign-sort" aria-label="Campaign sort">
+                <option value="updatedAt">Last updated</option>
+                <option value="createdAt">Created</option>
+                <option value="scheduledAt">Scheduled</option>
+                <option value="projectId">Project</option>
+                <option value="privacy">Privacy</option>
+                <option value="status">Status</option>
+              </select>
+              <select id="campaign-order" aria-label="Campaign sort order">
+                <option value="desc">Descending</option>
+                <option value="asc">Ascending</option>
+              </select>
+            </div>
+          </div>
           <div id="campaigns" class="campaign-list"></div>
+          <div id="campaign-pager" class="pager"></div>
         </article>
 
         <article class="panel detail-panel">
           <div id="campaign-detail" class="empty-state">
             <div class="empty-icon">↗</div>
             <h3>Select a campaign</h3>
-            <p>Inspect drafts, provenance, versions, approvals, and PAG handoff state.</p>
+            <p>Inspect drafts, provenance, versions, approvals, schedules, and PAG handoff state.</p>
           </div>
         </article>
       </section>
