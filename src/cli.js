@@ -5,12 +5,19 @@ import { BipAI } from './pipeline.js';
 import { FileInbox } from './capture/inbox.js';
 import { scanGitActivity } from './capture/git.js';
 import { ProjectRegistry } from './projects.js';
+import { applyEditorial, approveCampaign, exportEditorial } from './editorial.js';
 
 function usage() {
-  console.log(`BIP-AI v0.2-dev\n\nCommands:\n  event emit <event.json>\n  events list [projectId]\n  campaigns list [projectId]\n  campaigns show <campaignId>\n  editorial export <campaignId> [output.json]\n  inbox emit <event.json>\n  inbox process\n  git scan <projectId> <repoPath> [since]\n  projects add <projectId> <repoPath>\n  projects list\n`);
+  console.log(`BIP-AI v0.3-dev\n\nCommands:\n  event emit <event.json>\n  events list [projectId]\n  campaigns list [projectId]\n  campaigns show <campaignId>\n  campaigns versions <campaignId>\n  campaigns approve <campaignId>\n  editorial export <campaignId> [output.json]\n  editorial import <campaignId> <editorial.json>\n  inbox emit <event.json>\n  inbox process\n  git scan <projectId> <repoPath> [since]\n  projects add <projectId> <repoPath>\n  projects list\n`);
 }
 
 function print(value) { console.log(JSON.stringify(value, null, 2)); }
+function requireCampaign(store, id) {
+  if (!id) throw new Error('campaign id is required');
+  const campaign = store.getCampaign(id);
+  if (!campaign) throw new Error(`campaign not found: ${id}`);
+  return campaign;
+}
 
 const [command, subcommand, arg1, arg2, arg3] = process.argv.slice(2);
 if (!command) { usage(); process.exit(0); }
@@ -29,24 +36,23 @@ try {
   } else if (command === 'campaigns' && subcommand === 'list') {
     print(store.listCampaigns(arg1 || null));
   } else if (command === 'campaigns' && subcommand === 'show') {
-    if (!arg1) throw new Error('campaigns show requires a campaign id');
-    const campaign = store.getCampaign(arg1);
-    if (!campaign) throw new Error(`campaign not found: ${arg1}`);
-    print(campaign);
+    print(requireCampaign(store, arg1));
+  } else if (command === 'campaigns' && subcommand === 'versions') {
+    if (!arg1) throw new Error('campaigns versions requires a campaign id');
+    print(store.listCampaignVersions(arg1));
+  } else if (command === 'campaigns' && subcommand === 'approve') {
+    const approved = approveCampaign(requireCampaign(store, arg1));
+    store.updateCampaignState(approved);
+    print(approved);
   } else if (command === 'editorial' && subcommand === 'export') {
-    if (!arg1) throw new Error('editorial export requires a campaign id');
-    const campaign = store.getCampaign(arg1);
-    if (!campaign) throw new Error(`campaign not found: ${arg1}`);
-    const editorial = {
-      project: campaign.projectId,
-      storyBrief: campaign.storyBrief,
-      claims: { x: campaign.drafts.x.claims, linkedin: campaign.drafts.linkedin.claims },
-      desiredFormats: { x: 'thread', linkedin: 'professional-narrative' },
-      toneConstraints: ['factual', 'no invented claims', 'no credentials or PAG internals'],
-      privacyConstraints: ['respect PASS/REVIEW/BLOCK', 'do not expose secrets']
-    };
+    const editorial = exportEditorial(requireCampaign(store, arg1));
     if (arg2) { writeFileSync(arg2, `${JSON.stringify(editorial, null, 2)}\n`); print({ written: arg2 }); }
     else print(editorial);
+  } else if (command === 'editorial' && subcommand === 'import') {
+    if (!arg1 || !arg2) throw new Error('editorial import requires <campaignId> <editorial.json>');
+    const updated = applyEditorial(requireCampaign(store, arg1), JSON.parse(readFileSync(arg2, 'utf8')));
+    store.saveCampaignVersion(updated);
+    print(updated);
   } else if (command === 'inbox' && subcommand === 'emit') {
     if (!arg1) throw new Error('inbox emit requires a JSON file');
     print(inbox.enqueue(JSON.parse(readFileSync(arg1, 'utf8'))));
