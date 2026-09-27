@@ -27,11 +27,21 @@ GitHub currently returns: `Upgrade to GitHub Pro or make this repository public 
 
 - [x] CI workflow exists.
 - [x] Full suite passes in local Node.js 22 verification for the functional stack.
-- [ ] Resolve GitHub-hosted Actions jobs failing before `Set up job`.
-- [ ] Obtain a green GitHub-hosted or trusted self-hosted CI run for the final public-release commit.
-- [ ] Require the green CI check in default-branch protection.
+- [x] Trusted BIP-AI self-hosted runner is configured and executing repository jobs.
+- [x] Aggregate PR verification passed on the self-hosted runner.
+- [x] Post-merge `main` push verification passed on the self-hosted runner.
+- [ ] Require the green CI check in default-branch protection once repository protections are available.
 
-The current GitHub-hosted failure produces a job object with no steps and no log URL, so it occurs before repository test commands execute. Check GitHub account Actions usage/budget and repository Actions settings before changing application code to chase this failure.
+### Hosted-runner note
+
+GitHub-hosted jobs previously failed before `Set up job`, returning no steps or job logs. The repository workflow/application was ruled out by successful execution of the same workflow on the BIP-AI self-hosted runner. The hosted-runner anomaly is therefore not a blocker for current CI integrity.
+
+The active self-hosted workflow verifies:
+
+1. checkout;
+2. Node.js 22+ on the runner;
+3. npm availability;
+4. the full `npm test` suite.
 
 ## Documentation and release
 
