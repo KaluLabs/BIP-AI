@@ -191,11 +191,11 @@ export function getNarrativeMemory(store, projectId) {
   return { memory: persisted, rebuilt: false };
 }
 
-export function narrativeContextClaims(memory, { limit = 12 } = {}) {
+export function narrativeContextClaims(memory, { limit = 12, excludeEventId = null } = {}) {
   if (!memory) return [];
   const size = Math.max(0, Math.min(50, Number(limit) || 0));
   return memory.entries
-    .filter((entry) => entry.draftEligible)
+    .filter((entry) => entry.draftEligible && (!excludeEventId || entry.sources?.[0]?.id !== excludeEventId))
     .slice()
     .sort((a, b) => {
       const time = String(b.occurredAt || '').localeCompare(String(a.occurredAt || ''));
