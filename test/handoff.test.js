@@ -69,6 +69,22 @@ test('deny is persisted as a denied handoff without bypass', async () => {
   assert.equal(next.platform.linkedin.handoffStatus, 'denied');
 });
 
+test('PAG auto-allow/success is persisted as succeeded without another execution request', async () => {
+  const campaign = approvedCampaign();
+  const pag = { async createIntent() { return { id: 'int_allow', status: 'succeeded', args_hash: 'allowhash', approval: null, execution: { status: 'succeeded' } }; } };
+  const { campaign: next } = await requestPagHandoff(campaign, 'x', { pag });
+  assert.equal(next.status, 'handoff_succeeded');
+  assert.equal(next.platform.x.handoffStatus, 'succeeded');
+});
+
+test('PAG transport/policy errors fail closed and do not mutate the campaign', async () => {
+  const campaign = approvedCampaign();
+  const before = structuredClone(campaign);
+  const pag = { async createIntent() { const error = new Error('PAG HTTP 409'); error.status = 409; throw error; } };
+  await assert.rejects(() => requestPagHandoff(campaign, 'x', { pag }), /409/);
+  assert.deepEqual(campaign, before);
+});
+
 test('reconciliation refuses stale campaign state', async () => {
   const campaign = approvedCampaign();
   campaign.platform.x.pagActionId = 'int_123';
