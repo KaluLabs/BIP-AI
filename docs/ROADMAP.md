@@ -115,7 +115,7 @@ BIP-012 should reuse BIP-011 scheduling/cursor primitives where practical.
 
 ### Wave C — review and publication operations
 
-- [ ] **[BIP-013 — Approval inbox](https://github.com/victorkay97/BIP-AI/issues/28)**
+- [x] **[BIP-013 — Approval inbox](https://github.com/victorkay97/BIP-AI/issues/28)**
   - drafts awaiting approval
   - privacy REVIEW items
   - stale approvals
