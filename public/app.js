@@ -1,12 +1,12 @@
 const state={
-  projects:[],events:[],campaigns:[],calendarCampaigns:[],selected:null,config:{},
+  projects:[],events:[],campaigns:[],calendarCampaigns:[],capture:null,selected:null,config:{},
   eventPagination:null,campaignPagination:null,loading:false
 };
 const $=(id)=>document.getElementById(id);
 const esc=(value='')=>String(value).replace(/[&<>'\"]/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const when=(value)=>value?new Date(value).toLocaleString():'—';
 const browserTimezone=()=>Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC';
-const statusClass=(value='')=>/pass|ready|approved|succeeded|published|high/i.test(value)?'good':/review|pending|medium|requested|authorized|planned|handed_off|overdue/i.test(value)?'warn':/block|fail|failed|denied|expired/i.test(value)?'bad':'muted';
+const statusClass=(value='')=>/pass|ready|approved|succeeded|published|healthy|high/i.test(value)?'good':/review|pending|medium|requested|authorized|planned|handed_off|overdue|warning/i.test(value)?'warn':/block|fail|failed|denied|expired|degraded/i.test(value)?'bad':'muted';
 const pill=(value)=>`<span class="pill ${statusClass(value)}">${esc(value||'unknown')}</span>`;
 
 const DEFAULT_QUERY={
@@ -107,14 +107,18 @@ async function load(){
     const [health,config,projects]=await Promise.all([api('/api/health'),api('/api/config'),api('/api/projects')]);
     state.projects=projects.projects;state.config=config;
     syncFilterControls();
-    const [events,campaigns,calendar]=await Promise.all([
+    const capturePromise=config.captureEnabled
+      ? api('/api/capture/status').catch((error)=>({error:error.message,sources:[]}))
+      : Promise.resolve(null);
+    const [events,campaigns,calendar,capture]=await Promise.all([
       api(`/api/events?${apiParams('events')}`),
       api(`/api/campaigns?${apiParams('campaigns')}`),
-      api(`/api/campaigns?${apiParams('campaigns',{calendar:true})}`)
+      api(`/api/campaigns?${apiParams('campaigns',{calendar:true})}`),
+      capturePromise
     ]);
     state.events=events.events;state.eventPagination=events.pagination;
     state.campaigns=campaigns.campaigns;state.campaignPagination=campaigns.pagination;
-    state.calendarCampaigns=calendar.campaigns;
+    state.calendarCampaigns=calendar.campaigns;state.capture=capture;
     const selected=queryState().campaign;
     state.selected=selected||null;
     $('health').textContent=health.ok?'Local service online':'Unavailable';$('health').className=`pill ${health.ok?'good':'bad'}`;
@@ -142,13 +146,14 @@ function syncFilterControls(){
   $('campaign-sort').value=q.csort;$('campaign-order').value=q.corder;
 }
 
-function render(){renderMetrics();renderProjects();renderEvents();renderCalendar();renderCampaigns()}
+function render(){renderMetrics();renderProjects();renderCapture();renderEvents();renderCalendar();renderCampaigns()}
 function renderMetrics(){
   const review=state.campaigns.filter(c=>c.editorialStatus==='needs_review'||c.privacyResult==='REVIEW').length;
   const scheduled=state.calendarCampaigns.reduce((count,c)=>count+['x','linkedin'].filter(p=>c.platform?.[p]?.schedule?.status==='planned').length,0);
   const eventTotal=state.eventPagination?.total??state.events.length;
   const campaignTotal=state.campaignPagination?.total??state.campaigns.length;
-  const html=[['Projects',state.projects.length],['Matching events',eventTotal],['Review on page',review],['Matching campaigns',campaignTotal],['Scheduled this month',scheduled]].map(([label,value])=>`<div class="metric"><div class="value">${value}</div><div class="label">${label}</div></div>`).join('');
+  const degraded=(state.capture?.sources||[]).filter(x=>x.health?.status==='degraded').length;
+  const html=[['Projects',state.projects.length],['Matching events',eventTotal],['Review on page',review],['Matching campaigns',campaignTotal],['Scheduled this month',scheduled],['Capture degraded',degraded]].map(([label,value])=>`<div class="metric"><div class="value">${value}</div><div class="label">${label}</div></div>`).join('');
   $('metrics').innerHTML=html;
 }
 function renderProjects(){
@@ -156,6 +161,34 @@ function renderProjects(){
   $('projects').innerHTML=state.projects.length?state.projects.map(p=>`<button class="project-card project-select ${selected===p.id?'active':''}" data-project="${esc(p.id)}"><strong>${esc(p.name||p.id)}</strong><span class="subtle">${esc(p.id)}</span><code>${esc(p.path||'')}</code></button>`).join(''):'<p class="subtle">No capture projects configured yet.</p>';
   document.querySelectorAll('.project-select').forEach(el=>el.addEventListener('click',()=>applyFilters({project:el.dataset.project})));
 }
+function renderCapture(){
+  const el=$('capture-status'); const run=$('run-capture');
+  if(!state.config.captureEnabled){
+    run.disabled=true; run.title='Automatic capture is disabled by configuration';
+    el.innerHTML='<div class="empty-list"><strong>Capture automation disabled</strong><span>Set BIP_AI_CAPTURE_ENABLED=1 and restart BIP-AI to enable it.</span></div>';
+    return;
+  }
+  run.disabled=false;
+  const project=queryState().project;
+  run.textContent=project?'Run selected project':'Run all now';
+  run.title=project?`Run Git capture for ${project}`:'Run Git capture for all registered projects';
+  if(state.capture?.error){
+    el.innerHTML=`<div class="error-state">${esc(state.capture.error)}</div>`; return;
+  }
+  const sources=state.capture?.sources||[];
+  if(!sources.length){
+    el.innerHTML='<div class="empty-list"><strong>No capture sources yet</strong><span>Add a local project to start automatic Git capture.</span></div>'; return;
+  }
+  el.innerHTML=sources.map(source=>{
+    const h=source.health||{}; const last=h.lastScan||{};
+    const error=h.lastError?`<span class="capture-error">${esc(h.lastError.code)} · ${esc(h.lastError.summary)}</span>`:'';
+    const retry=h.nextAttemptAt?`<span>next retry ${esc(when(h.nextAttemptAt))}</span>`:'';
+    const stats=h.lastScan?`<span>scan ${Number(last.scanned||0)} · accepted ${Number(last.accepted||0)} · duplicates ${Number(last.duplicates||0)}</span>`:'<span>no scan completed yet</span>';
+    const cursor=source.cursor?.headSha?`<code>${esc(source.cursor.headSha.slice(0,12))}</code>`:'<code>no cursor</code>';
+    return `<div class="capture-card"><div class="row spread"><strong>${esc(source.projectName||source.projectId)}</strong>${pill(h.status||'never_run')}</div><div class="capture-meta"><span>last success ${esc(when(h.lastSuccessAt))}</span>${retry}${stats}${error}</div><div class="row spread"><span class="subtle">${esc(source.sourceType)}</span>${cursor}</div></div>`;
+  }).join('');
+}
+
 function renderEvents(){
   const page=state.eventPagination;
   $('event-count').textContent=page?`${state.events.length} shown · ${page.total} total`:`${state.events.length} total`;
@@ -291,6 +324,16 @@ $('event-sort').addEventListener('change',()=>applyFilters({esort:$('event-sort'
 $('event-order').addEventListener('change',()=>applyFilters({eorder:$('event-order').value}));
 $('campaign-sort').addEventListener('change',()=>applyFilters({csort:$('campaign-sort').value}));
 $('campaign-order').addEventListener('change',()=>applyFilters({corder:$('campaign-order').value}));
+$('run-capture').addEventListener('click',async()=>{
+  const button=$('run-capture'); button.disabled=true;
+  try{
+    const projectId=queryState().project||null;
+    const result=await api('/api/capture/run',{method:'POST',body:JSON.stringify({projectId})});
+    notify(`Capture finished: ${result.succeeded} succeeded, ${result.failed} failed`);
+    await load();
+  }catch(error){notify(error.message,'error')}
+  finally{button.disabled=false}
+});
 $('project-form').addEventListener('submit',async(event)=>{event.preventDefault();const data=Object.fromEntries(new FormData(event.currentTarget));try{await api('/api/projects',{method:'POST',body:JSON.stringify(data)});event.currentTarget.reset();notify('Project capture source added');await load()}catch(error){notify(error.message,'error')}});
 $('refresh').addEventListener('click',load);
 addEventListener('popstate',load);
