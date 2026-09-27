@@ -120,9 +120,11 @@ function evidence({ repository, externalId, url, kind }) {
   return [{ type: 'github', kind, externalId, repository, url: url || null }];
 }
 
-function githubMetadata({ repository, eventId = null, kind, action = null, number = null, sha = null, runId = null, ref = null }) {
+function githubMetadata({ repository, externalId, eventId = null, kind, action = null, number = null, sha = null, runId = null, ref = null }) {
   return {
+    externalId,
     github: {
+      externalId,
       repository,
       eventId,
       kind,
@@ -153,6 +155,7 @@ function baseEvent({ projectId, repository, raw, kind, action = null, externalId
     privacy,
     metadata: githubMetadata({
       repository,
+      externalId,
       eventId: raw?.id ? String(raw.id) : null,
       kind,
       action,
@@ -336,6 +339,7 @@ export function mapWorkflowRun(run, context) {
     privacy,
     metadata: githubMetadata({
       repository: context.repository,
+      externalId,
       kind: 'workflow_run',
       action: run.conclusion,
       runId: run.id,
