@@ -7,7 +7,7 @@ BIP-AI separates observation, editorial reasoning, human approval, transport cre
 1. **Observation** — portable `ProjectEvent` records from Git, filesystem/manual updates, and sanitized external adapters.
 2. **Editorial core** — deduplication, storyworthiness scoring, privacy gates, StoryBrief construction, deterministic drafting, claim provenance, and campaign versioning.
 3. **Optional drafting provider** — can propose richer drafts from privacy-`PASS` StoryBrief claims, but its output must pass structure/provenance validation and cannot approve or publish.
-4. **Local state** — SQLite event/campaign storage plus immutable campaign version history.
+4. **Local state** — SQLite event/campaign storage, immutable campaign version history, and project-scoped derived narrative memory whose factual entries remain source-addressable.
 5. **Human approval** — binds approval to the exact current `version + contentHash`.
 6. **Action gateway** — PAG receives least-privilege intents such as `x.threads.create` and `linkedin.posts.create`; BIP-AI never receives the social-account credential.
 7. **External transports** — WhatsApp or other transports run separately, submit sanitized events, and keep their session/account material outside BIP-AI.
@@ -27,6 +27,20 @@ Privacy is deny-first:
 - `PASS` is eligible for normal editorial/provider processing.
 
 Editing content creates a new campaign version and invalidates prior approval and handoff state.
+
+## Narrative memory
+
+Narrative memory is derived from authoritative ProjectEvents and current campaign privacy/editorial state. It is project-isolated and rebuildable.
+
+- `PASS` active entries may become bounded StoryBrief context.
+- `REVIEW` entries remain inspectable but non-draftable.
+- `BLOCK` material is omitted.
+- archive/forget controls change only derived memory, never immutable source events.
+- every factual memory entry retains exact event-field provenance.
+
+Narrative memory adds context; it does not create publishing authority or an unsourced fact store.
+
+See `docs/NARRATIVE-MEMORY.md`.
 
 ## Drafting providers
 
