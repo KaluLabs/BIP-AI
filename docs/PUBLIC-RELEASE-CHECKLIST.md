@@ -10,7 +10,7 @@ BIP-AI should remain private until the pre-public checks are complete. Some GitH
 - [x] Add project attribution information in `NOTICE`.
 - [x] Review current dependency/action licenses for compatibility.
 
-Current inventory: BIP-AI has no third-party npm runtime/development dependencies. The active CI workflow uses `actions/checkout@v4`, which is MIT-licensed and compatible with Apache-2.0.
+Current inventory: BIP-AI has no third-party npm runtime/development dependencies. The active CI workflow uses `actions/checkout` v7.0.1, MIT-licensed and compatible with Apache-2.0, pinned to the immutable commit `3d3c42e5aac5ba805825da76410c181273ba90b1`.
 
 ## Security and repository settings
 
@@ -44,6 +44,8 @@ Therefore the safe order is:
 - [x] Trusted BIP-AI self-hosted runner is configured and executing repository jobs.
 - [x] Aggregate PR verification passed on the self-hosted runner.
 - [x] Post-merge `main` push verification passed on the self-hosted runner.
+- [x] Update checkout to v7.0.1 and verify it on the self-hosted runner.
+- [x] Pin checkout v7.0.1 to its immutable official commit SHA.
 - [ ] Require the green CI check in default-branch protection after the repository becomes public.
 
 ### Hosted-runner note
@@ -81,4 +83,4 @@ The active self-hosted workflow verifies:
 
 ## Remaining release sequence
 
-Once this release-prep change is merged and CI is green, the only remaining actions are visibility-dependent GitHub repository settings and creation of the `v0.1.0` tag/release.
+Once this hardening change is merged and CI is green, the only remaining actions are visibility-dependent GitHub repository settings and creation of the `v0.1.0` tag/release.
