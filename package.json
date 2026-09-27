@@ -1,6 +1,6 @@
 {
   "name": "bip-ai",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Building in Public AI: evidence-first, privacy-aware project activity to social draft pipeline.",
@@ -25,6 +25,7 @@
     "setup": "node ./src/cli.js setup",
     "doctor": "node ./src/cli.js doctor",
     "dist": "node ./scripts/build-release-artifacts.mjs",
-    "verify:distribution": "bash ./scripts/verify-distribution.sh"
+    "verify:distribution": "bash ./scripts/verify-distribution.sh",
+    "audit:release": "node ./scripts/audit-release-tree.mjs"
   }
 }
