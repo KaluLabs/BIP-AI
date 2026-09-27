@@ -117,6 +117,7 @@ test('campaign source status platform and scheduled range filters compose', () =
   ];
 
   const query = parseListQuery(new URLSearchParams({
+    q: 'Hook c1',
     source: 'github',
     platform: 'x',
     status: 'planned',
