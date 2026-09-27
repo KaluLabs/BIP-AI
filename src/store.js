@@ -37,6 +37,42 @@ export class BipStore {
         created_at TEXT NOT NULL,
         PRIMARY KEY(campaign_id, version)
       );
+      CREATE TABLE IF NOT EXISTS publishing_journal (
+        id TEXT PRIMARY KEY,
+        attempt_id TEXT NOT NULL,
+        campaign_id TEXT NOT NULL,
+        project_id TEXT NOT NULL,
+        platform TEXT NOT NULL,
+        campaign_version INTEGER NOT NULL,
+        content_hash TEXT NOT NULL,
+        attempt_number INTEGER NOT NULL,
+        event_type TEXT NOT NULL,
+        status TEXT NOT NULL,
+        retryable INTEGER NOT NULL DEFAULT 0,
+        retry_of TEXT,
+        idempotency_key TEXT NOT NULL,
+        pag_intent_id TEXT,
+        pag_approval_id TEXT,
+        pag_status TEXT,
+        args_hash TEXT,
+        error_code TEXT,
+        receipt_json TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_publishing_journal_campaign
+        ON publishing_journal(campaign_id, platform, created_at ASC);
+      CREATE INDEX IF NOT EXISTS idx_publishing_journal_attempt
+        ON publishing_journal(attempt_id, created_at ASC);
+      CREATE TRIGGER IF NOT EXISTS publishing_journal_no_update
+        BEFORE UPDATE ON publishing_journal
+        BEGIN
+          SELECT RAISE(ABORT, 'publishing_journal is append-only');
+        END;
+      CREATE TRIGGER IF NOT EXISTS publishing_journal_no_delete
+        BEFORE DELETE ON publishing_journal
+        BEGIN
+          SELECT RAISE(ABORT, 'publishing_journal is append-only');
+        END;
       CREATE TABLE IF NOT EXISTS capture_sources (
         source_key TEXT PRIMARY KEY,
         project_id TEXT NOT NULL,
@@ -110,6 +146,95 @@ export class BipStore {
       ? this.db.prepare('SELECT payload_json FROM campaigns WHERE project_id = ? ORDER BY updated_at DESC').all(projectId)
       : this.db.prepare('SELECT payload_json FROM campaigns ORDER BY updated_at DESC').all();
     return rows.map((row) => JSON.parse(row.payload_json));
+  }
+
+  appendPublishingJournal(entry) {
+    if (!entry || typeof entry !== 'object') throw new TypeError('publishing journal entry is required');
+    const required = [
+      'id', 'attemptId', 'campaignId', 'projectId', 'platform',
+      'campaignVersion', 'contentHash', 'attemptNumber',
+      'eventType', 'status', 'idempotencyKey', 'createdAt'
+    ];
+    for (const key of required) {
+      if (entry[key] == null || entry[key] === '') throw new TypeError(`publishing journal ${key} is required`);
+    }
+    if (!['x', 'linkedin'].includes(entry.platform)) throw new TypeError('publishing journal platform must be x or linkedin');
+    this.db.prepare(`
+      INSERT INTO publishing_journal(
+        id, attempt_id, campaign_id, project_id, platform,
+        campaign_version, content_hash, attempt_number,
+        event_type, status, retryable, retry_of, idempotency_key,
+        pag_intent_id, pag_approval_id, pag_status, args_hash,
+        error_code, receipt_json, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      entry.id,
+      entry.attemptId,
+      entry.campaignId,
+      entry.projectId,
+      entry.platform,
+      Number(entry.campaignVersion),
+      entry.contentHash,
+      Number(entry.attemptNumber),
+      entry.eventType,
+      entry.status,
+      entry.retryable ? 1 : 0,
+      entry.retryOf || null,
+      entry.idempotencyKey,
+      entry.pagIntentId || null,
+      entry.pagApprovalId || null,
+      entry.pagStatus || null,
+      entry.argsHash || null,
+      entry.errorCode || null,
+      entry.receipt == null ? null : JSON.stringify(entry.receipt),
+      entry.createdAt
+    );
+    return structuredClone(entry);
+  }
+
+  listPublishingJournal({ campaignId = null, platform = null, attemptId = null } = {}) {
+    const clauses = [];
+    const values = [];
+    if (campaignId) { clauses.push('campaign_id = ?'); values.push(campaignId); }
+    if (platform) { clauses.push('platform = ?'); values.push(platform); }
+    if (attemptId) { clauses.push('attempt_id = ?'); values.push(attemptId); }
+    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+    const rows = this.db.prepare(`
+      SELECT id, attempt_id, campaign_id, project_id, platform,
+        campaign_version, content_hash, attempt_number,
+        event_type, status, retryable, retry_of, idempotency_key,
+        pag_intent_id, pag_approval_id, pag_status, args_hash,
+        error_code, receipt_json, created_at
+      FROM publishing_journal
+      ${where}
+      ORDER BY created_at ASC, id ASC
+    `).all(...values);
+    return rows.map((row) => ({
+      id: row.id,
+      attemptId: row.attempt_id,
+      campaignId: row.campaign_id,
+      projectId: row.project_id,
+      platform: row.platform,
+      campaignVersion: row.campaign_version,
+      contentHash: row.content_hash,
+      attemptNumber: row.attempt_number,
+      eventType: row.event_type,
+      status: row.status,
+      retryable: Boolean(row.retryable),
+      retryOf: row.retry_of || null,
+      idempotencyKey: row.idempotency_key,
+      pagIntentId: row.pag_intent_id || null,
+      pagApprovalId: row.pag_approval_id || null,
+      pagStatus: row.pag_status || null,
+      argsHash: row.args_hash || null,
+      errorCode: row.error_code || null,
+      receipt: row.receipt_json ? JSON.parse(row.receipt_json) : null,
+      createdAt: row.created_at
+    }));
+  }
+
+  getPublishingAttempt(attemptId) {
+    return this.listPublishingJournal({ attemptId });
   }
 
   getCaptureState(sourceKey) {
