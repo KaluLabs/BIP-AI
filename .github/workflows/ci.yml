@@ -19,7 +19,9 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - run: npm test
+      - name: Verify runner Node.js
+        run: node -e "const major=Number(process.versions.node.split('.')[0]); console.log('Node', process.versions.node); if (major < 22) { console.error('Node.js 22+ is required on the self-hosted runner.'); process.exit(1); }"
+      - name: Verify npm
+        run: npm --version
+      - name: Run test suite
+        run: npm test
