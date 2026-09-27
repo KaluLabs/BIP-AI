@@ -18,7 +18,9 @@ Environment settings:
 - `BIP_AI_SCHEDULE_POLL_MS` — defaults to `30000`. When PAG is configured, the local server checks due editorial schedules at this interval.
 - `BIP_AI_CAPTURE_ENABLED` — defaults to enabled; set to `0` to disable automatic local capture while serving the Control Room.
 - `BIP_AI_CAPTURE_POLL_MS` — defaults to `60000`.
-- `BIP_AI_CAPTURE_BATCH_SIZE` — defaults to `50` commits per project/cycle.
+- `BIP_AI_CAPTURE_BATCH_SIZE` — defaults to `50` source records per project/cycle.
+- `BIP_AI_GITHUB_POLL_MS` — defaults to `300000` for configured GitHub sources.
+- `BIP_AI_GITHUB_TOKEN` — optional environment-only GitHub token; the Control Room receives only a boolean indicating whether one is configured.
 
 ## What the dashboard exposes
 
@@ -37,7 +39,8 @@ Environment settings:
 - URL-backed project/search/filter/sort state
 - server-side pagination for event and campaign collections
 - deterministic event/campaign sorting with stable ID tie-breaking
-- per-project capture health, last success, retry state, SHA checkpoint, and last scan counts
+- per-project/per-source capture health, last success, cadence/retry state, checkpoints, and last scan counts
+- GitHub source configuration for registered projects
 - manual capture run control for the selected project or all projects
 
 The dashboard may display local repository paths because it is an operator surface. It does not expose PAG actor tokens, drafting-provider API keys, or social-account credentials. `/api/config` returns only safe provider/configuration names, booleans, and non-secret scheduling settings.
@@ -192,3 +195,16 @@ The **Capture health** panel shows one local Git source per registered project, 
 The **Run now** control performs an explicit one-shot scan. When a project is selected by the global project filter it targets only that project; otherwise it scans all registered projects.
 
 The Control Room never turns capture into publishing. Captured commits enter the same ProjectEvent/storyworthiness/privacy/editorial pipeline as manually emitted events. Approval and PAG remain separate downstream boundaries.
+
+
+## GitHub source configuration
+
+The Projects panel can associate a registered project with an `owner/repo` GitHub source and a visibility mode.
+
+The visibility defaults to **Private / internal**. Private sources feed evidence into BIP-AI with `REVIEW` privacy rather than producing approval-ready drafts automatically.
+
+The browser never receives `BIP_AI_GITHUB_TOKEN`. The safe config endpoint exposes only `githubTokenConfigured: true|false`, allowing the UI to indicate whether authenticated access is available without disclosing the credential.
+
+GitHub capture health appears beside local Git health as a separate source. Its checkpoint shows the repository-event cursor and attempt-aware workflow cursor. Healthy GitHub sources may display a future **next scan** time; degraded sources display **next retry**.
+
+See [GitHub activity capture](./GITHUB-CAPTURE.md) for event mappings, privacy behavior, cursor semantics, and authentication.
