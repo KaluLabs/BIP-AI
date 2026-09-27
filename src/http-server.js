@@ -7,6 +7,7 @@ import { evaluatePrivacy, evaluateStoryworthiness } from './core.js';
 import { requestPagHandoff, reconcilePagHandoff } from './handoff.js';
 import { regenerateCampaignDrafts } from './drafting.js';
 import { ingestExternalUpdate } from './adapters/external-update.js';
+import { clearCampaignSchedule, listDueSchedules, runDueSchedules, scheduleCampaign } from './scheduling.js';
 
 const DEFAULT_PUBLIC_DIR = fileURLToPath(new URL('../public', import.meta.url));
 const MIME = { '.html':'text/html; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.css':'text/css; charset=utf-8', '.svg':'image/svg+xml' };
@@ -36,10 +37,10 @@ function campaignOr404(store, id) { const value=store.getCampaign(id); if(!value
 function projectOr404(projects, id) { const value=projects.get(id); if(!value) throw httpError(404, 'project not found'); return value; }
 function enrichEvent(event, storyThreshold) { return { ...event, evaluation:evaluateStoryworthiness(event, storyThreshold), privacy:evaluatePrivacy(event) }; }
 
-export function createBipServer({ store, projects, app = null, pagFactory = null, draftProviderFactory = null, connections = {}, storyThreshold = 3, publicDir = DEFAULT_PUBLIC_DIR, safeConfig = {} } = {}) {
+export function createBipServer({ store, projects, app = null, pagFactory = null, draftProviderFactory = null, connections = {}, storyThreshold = 3, publicDir = DEFAULT_PUBLIC_DIR, safeConfig = {}, schedulePollMs = 30_000 } = {}) {
   if (!store || !projects) throw new TypeError('store and projects are required');
 
-  return http.createServer(async (req, res) => {
+  const server = http.createServer(async (req, res) => {
     res.setHeader('x-content-type-options', 'nosniff');
     res.setHeader('referrer-policy', 'no-referrer');
     res.setHeader('x-frame-options', 'DENY');
@@ -69,9 +70,26 @@ export function createBipServer({ store, projects, app = null, pagFactory = null
       if (req.method === 'GET' && path === '/api/campaigns') {
         return json(res,200,{campaigns:store.listCampaigns(url.searchParams.get('projectId'))});
       }
+      if (req.method === 'GET' && path === '/api/schedules/due') {
+        const at=url.searchParams.get('at') || new Date().toISOString();
+        return json(res,200,{at:new Date(at).toISOString(),items:listDueSchedules(store.listCampaigns(),{at})});
+      }
+      if (req.method === 'POST' && path === '/api/schedules/run-due') {
+        requireCsrf(req); if(!pagFactory) throw httpError(503,'PAG is not configured');
+        const body=await bodyJson(req); const at=body.at || new Date().toISOString();
+        return json(res,200,await runDueSchedules(store,{pagFactory,connections,at}));
+      }
       if (req.method === 'GET' && /^\/api\/campaigns\/[^/]+$/.test(path)) {
         const id=decodeURIComponent(path.split('/').pop());
         return json(res,200,{campaign:campaignOr404(store,id),versions:store.listCampaignVersions(id)});
+      }
+      if (req.method === 'POST' && /^\/api\/campaigns\/[^/]+\/schedule\/(x|linkedin)$/.test(path)) {
+        requireCsrf(req); const parts=path.split('/'); const id=decodeURIComponent(parts[3]); const platform=parts[5]; const body=await bodyJson(req);
+        const campaign=scheduleCampaign(campaignOr404(store,id),platform,body); store.updateCampaignState(campaign); return json(res,200,{campaign});
+      }
+      if (req.method === 'POST' && /^\/api\/campaigns\/[^/]+\/schedule\/(x|linkedin)\/clear$/.test(path)) {
+        requireCsrf(req); const parts=path.split('/'); const id=decodeURIComponent(parts[3]); const platform=parts[5]; await bodyJson(req);
+        const campaign=clearCampaignSchedule(campaignOr404(store,id),platform); store.updateCampaignState(campaign); return json(res,200,{campaign});
       }
       if (req.method === 'POST' && /^\/api\/campaigns\/[^/]+\/editorial$/.test(path)) {
         requireCsrf(req); const id=decodeURIComponent(path.split('/')[3]); const body=await bodyJson(req);
@@ -105,6 +123,26 @@ export function createBipServer({ store, projects, app = null, pagFactory = null
       json(res,status,{error:status>=500?'request failed':String(error.message||error)});
     }
   });
+
+  if (pagFactory && Number(schedulePollMs) > 0) {
+    let timer = null;
+    let running = false;
+    const tick = async () => {
+      if (running) return;
+      running = true;
+      try { await runDueSchedules(store, { pagFactory, connections, at: new Date() }); }
+      catch { /* per-item failures are persisted by the scheduling engine */ }
+      finally { running = false; }
+    };
+    server.once('listening', () => {
+      void tick();
+      timer = setInterval(() => { void tick(); }, Number(schedulePollMs));
+      timer.unref?.();
+    });
+    server.once('close', () => { if (timer) clearInterval(timer); });
+  }
+
+  return server;
 }
 
 function serveStatic(pathname, publicDir, res) {
