@@ -6,9 +6,11 @@ import { FileInbox } from './capture/inbox.js';
 import { scanGitActivity } from './capture/git.js';
 import { ProjectRegistry } from './projects.js';
 import { applyEditorial, approveCampaign, exportEditorial } from './editorial.js';
+import { PagClient } from './pag-client.js';
+import { requestPagHandoff, reconcilePagHandoff } from './handoff.js';
 
 function usage() {
-  console.log(`BIP-AI v0.3-dev\n\nCommands:\n  event emit <event.json>\n  events list [projectId]\n  campaigns list [projectId]\n  campaigns show <campaignId>\n  campaigns versions <campaignId>\n  campaigns approve <campaignId>\n  editorial export <campaignId> [output.json]\n  editorial import <campaignId> <editorial.json>\n  inbox emit <event.json>\n  inbox process\n  git scan <projectId> <repoPath> [since]\n  projects add <projectId> <repoPath>\n  projects list\n`);
+  console.log(`BIP-AI v0.4-dev\n\nCommands:\n  event emit <event.json>\n  events list [projectId]\n  campaigns list [projectId]\n  campaigns show <campaignId>\n  campaigns versions <campaignId>\n  campaigns approve <campaignId>\n  editorial export <campaignId> [output.json]\n  editorial import <campaignId> <editorial.json>\n  inbox emit <event.json>\n  inbox process\n  git scan <projectId> <repoPath> [since]\n  projects add <projectId> <repoPath>\n  projects list\n  request-x <campaignId>\n  request-linkedin <campaignId>\n  handoff status <x|linkedin> <campaignId>\n`);
 }
 
 function print(value) { console.log(JSON.stringify(value, null, 2)); }
@@ -27,6 +29,7 @@ try {
   const app = new BipAI({ store, storyThreshold: Number(process.env.BIP_AI_STORY_THRESHOLD || 3) });
   const inbox = new FileInbox(process.env.BIP_AI_EVENT_DIR || '.bipai/events');
   const projects = new ProjectRegistry(process.env.BIP_AI_PROJECTS || '.bipai/projects.json');
+  const createPag = () => new PagClient({ baseUrl: process.env.PAG_BASE_URL || 'http://127.0.0.1:8787', token: process.env.PAG_ACTOR_TOKEN });
 
   if (command === 'event' && subcommand === 'emit') {
     if (!arg1) throw new Error('event emit requires a JSON file');
@@ -67,6 +70,23 @@ try {
     print(projects.add({ id: arg1, path: arg2 }));
   } else if (command === 'projects' && subcommand === 'list') {
     print(projects.list());
+  } else if (command === 'request-x') {
+    const result = await requestPagHandoff(requireCampaign(store, subcommand), 'x', {
+      pag: createPag(), connectionId: process.env.BIP_AI_X_CONNECTION_ID || null
+    });
+    store.updateCampaignState(result.campaign);
+    print(result);
+  } else if (command === 'request-linkedin') {
+    const result = await requestPagHandoff(requireCampaign(store, subcommand), 'linkedin', {
+      pag: createPag(), connectionId: process.env.BIP_AI_LINKEDIN_CONNECTION_ID || null
+    });
+    store.updateCampaignState(result.campaign);
+    print(result);
+  } else if (command === 'handoff' && subcommand === 'status') {
+    if (!['x', 'linkedin'].includes(arg1) || !arg2) throw new Error('handoff status requires <x|linkedin> <campaignId>');
+    const result = await reconcilePagHandoff(requireCampaign(store, arg2), arg1, { pag: createPag() });
+    store.updateCampaignState(result.campaign);
+    print(result);
   } else {
     usage();
     process.exitCode = 1;
