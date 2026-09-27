@@ -213,7 +213,7 @@ export function createBipServer({ store, projects, app = null, pagFactory = null
         requireCsrf(req); if(!pagFactory) throw httpError(503,'PAG is not configured');
         const parts=path.split('/'); const id=decodeURIComponent(parts[3]); const platform=parts[5]; const body=await bodyJson(req);
         const current=campaignOr404(store,id);
-        const campaign=(body.version!=null || body.contentHash) ? exactCampaignVersion(current,body) : current;
+        const campaign=exactCampaignVersion(current,body);
         const result=await requestPublishingHandoff(store,campaign,platform,{pag:pagFactory(),connectionId:body.connectionId||connections[platform]||null});
         return json(res,200,result);
       }
