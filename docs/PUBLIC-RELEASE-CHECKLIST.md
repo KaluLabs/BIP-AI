@@ -1,87 +1,86 @@
 # Public release checklist
 
-BIP-AI should remain private until the pre-public checks are complete. Some GitHub security/protection features only become available on the current account configuration after the repository is made public, so the visibility change and those settings must be treated as one release sequence.
+BIP-AI is a public Apache-2.0 repository. The v0.1.0 public-release hardening sequence is complete; this checklist now records the active release/security baseline used by v0.2.0.
 
-## Legal
+## Legal and project metadata
 
-- [x] Explicitly choose an open-source license: Apache License 2.0.
-- [x] Add the canonical `LICENSE` file.
-- [x] Add the selected SPDX/license identifier (`Apache-2.0`) to package metadata.
-- [x] Add project attribution information in `NOTICE`.
-- [x] Review current dependency/action licenses for compatibility.
+- [x] Apache License 2.0 selected.
+- [x] Canonical `LICENSE` committed.
+- [x] Package metadata uses `Apache-2.0`.
+- [x] Project attribution is documented in `NOTICE`.
+- [x] Current dependency/action licensing is compatible with the project license.
+- [x] npm/package-registry publication remains intentionally disabled with `private: true`.
 
-Current inventory: BIP-AI has no third-party npm runtime/development dependencies. The active CI workflow uses `actions/checkout` v7.0.1, MIT-licensed and compatible with Apache-2.0, pinned to the immutable commit `3d3c42e5aac5ba805825da76410c181273ba90b1`.
+BIP-AI currently has no third-party npm runtime/development dependencies. CI uses `actions/checkout` v7.0.1 pinned to the immutable official commit `3d3c42e5aac5ba805825da76410c181273ba90b1`.
 
-## Security and repository settings
+## Repository security baseline
 
-- [x] Add SECURITY.md.
-- [x] Add contributor and conduct policies.
-- [x] Add issue and pull-request templates.
-- [x] Add CODEOWNERS.
-- [x] Add dependency/update policy and Dependabot configuration.
-- [ ] Change repository visibility from private to public.
-- [ ] Immediately after visibility changes, enable GitHub private vulnerability reporting.
-- [ ] Immediately after visibility changes, enable a default-branch ruleset/protection for `main` requiring pull requests and the green CI check.
+- [x] Repository visibility is public.
+- [x] `SECURITY.md`, contributor policy, conduct policy, templates, CODEOWNERS, dependency policy, and Dependabot configuration are present.
+- [x] Private vulnerability reporting was enabled during the v0.1.0 public-release sequence.
+- [x] The active `main-protection` ruleset targets the default branch.
+- [x] The ruleset requires pull requests.
+- [x] The ruleset requires the green `test` status check.
+- [x] Branch deletion and non-fast-forward updates are blocked by the ruleset.
+- [x] No ruleset bypass actor is configured.
 
-### Visibility-dependent settings
+Before each release, verify that these controls still exist and have not been weakened.
 
-GitHub private vulnerability reporting is available for **public repositories**. On the current private repository, it cannot be enabled in advance.
+## CI and distribution verification
 
-GitHub rulesets/protected branches are available for public repositories on GitHub Free; private repositories require GitHub Pro, Team, or Enterprise. GitHub currently returns `Upgrade to GitHub Pro or make this repository public to enable this feature.` for BIP-AI.
+The trusted self-hosted workflow verifies:
 
-Therefore the safe order is:
-
-1. finish all pre-public code/history checks;
-2. make the repository public;
-3. immediately enable private vulnerability reporting;
-4. immediately protect `main` and require the CI check;
-5. verify public-facing README/security/issue links.
-
-## CI
-
-- [x] CI workflow exists.
-- [x] Full suite passes in local Node.js 22 verification for the functional stack.
-- [x] Trusted BIP-AI self-hosted runner is configured and executing repository jobs.
-- [x] Aggregate PR verification passed on the self-hosted runner.
-- [x] Post-merge `main` push verification passed on the self-hosted runner.
-- [x] Update checkout to v7.0.1 and verify it on the self-hosted runner.
-- [x] Pin checkout v7.0.1 to its immutable official commit SHA.
-- [ ] Require the green CI check in default-branch protection after the repository becomes public.
-
-### Hosted-runner note
-
-GitHub-hosted jobs previously failed before `Set up job`, returning no steps or job logs. The repository workflow/application was ruled out by successful execution of the same workflow on the BIP-AI self-hosted runner. The hosted-runner anomaly is therefore not a blocker for current CI integrity.
-
-The active self-hosted workflow verifies:
-
-1. checkout;
-2. Node.js 22+ on the runner;
+1. immutable checkout;
+2. Node.js 22+ availability;
 3. npm availability;
-4. the full `npm test` suite.
+4. the complete `node --test` suite;
+5. release-tree exposure auditing;
+6. reproducible source-archive generation;
+7. Docker packaged-runtime build and health;
+8. persistent `/data` state across container and image replacement.
 
-## Documentation and first release
+Required release-candidate commands:
 
-- [x] Architecture/trust-boundary ADRs exist.
-- [x] Release/versioning policy exists.
-- [x] Changelog exists.
-- [x] Reproducible contributor setup is documented.
-- [x] Prepare the changelog for version `0.1.0` dated 2026-09-27.
-- [x] Package version is `0.1.0`.
-- [x] Prepare first-release notes in `docs/releases/v0.1.0.md`.
-- [x] Decide package-registry publication: **not part of v0.1.0**; keep `private: true`.
-- [ ] Create the `v0.1.0` tag and GitHub release after the release-prep commit is on `main`.
+```bash
+npm test
+npm run audit:release
+npm run verify:distribution
+```
+
+A release candidate is not tag-ready until the same commit is green through the protected `main` workflow.
 
 ## Exposure review
 
-- [x] Scan every live branch head for sensitive filenames/local state.
-- [x] Scan the retained pre-public development history for credential-shaped content and sensitive file additions/removals.
-- [x] Separately scan the later release-prep, checkout-v7, and immutable-pin hardening commits added after the first history pass.
-- [x] Confirm current `.env.example` secret values are blank.
-- [x] Confirm `.gitignore` excludes `.env`, `.bipai/`, SQLite/WAL state, node_modules, and coverage.
-- [x] Confirm no real private keys, GitHub/OpenAI/AWS/Slack credentials, PAG tokens, session stores, or similar sensitive artifacts were found.
-- [x] Review the only secret-pattern hit: intentional fake unit-test value `super-secret-key`.
-- [ ] Verify public README/security/issue links after visibility changes.
+Automated release-tree auditing fails when it finds:
 
-## Remaining release sequence
+- tracked `.env` files other than `.env.example`;
+- tracked `.bipai`, SQLite/WAL, `node_modules`, generated `dist`, private-key, or certificate/key material;
+- high-confidence GitHub, AWS, Slack, OpenAI-style, or private-key credential patterns;
+- non-blank secret-bearing fields in `.env.example`;
+- `package.json` without `private: true`.
 
-All pre-public repository work that can be completed while BIP-AI is private is done. The remaining actions are visibility-dependent GitHub repository settings and creation of the `v0.1.0` tag/release.
+The v0.1.0 retained-history exposure review remains part of the historical release record. v0.2.0 additionally gates the current release tree in CI.
+
+## v0.1.0 release record
+
+- [x] Changelog and release notes prepared.
+- [x] Package version set to 0.1.0.
+- [x] Public `v0.1.0` tag/release published on 2026-09-27.
+- [x] npm publication excluded from the release.
+
+## v0.2.0 release-candidate sequence
+
+1. Complete BIP-009 through BIP-016.
+2. Prove v0.1.0 persistent-state compatibility with an automated regression test.
+3. Set package/runtime metadata to `0.2.0`.
+4. Move shipped changelog entries into the dated `0.2.0` section.
+5. Keep `docs/releases/v0.2.0.md` aligned with shipped behavior.
+6. Run the full test suite, release-tree audit, and distribution verification in the release PR.
+7. Merge only through protected `main`.
+8. Require the post-merge `main` workflow to pass on the exact release-candidate commit.
+9. Generate the source archive/checksum from that verified commit.
+10. Review the release artifact manifest and checksum.
+11. Only then create the immutable release tag and GitHub release.
+12. Do not publish to npm unless a separate explicit decision approves that distribution boundary.
+
+See [Release policy](./RELEASING.md), [Distribution and installation](./DISTRIBUTION.md), and [v0.2.0 release notes](./releases/v0.2.0.md).
