@@ -140,7 +140,7 @@ BIP-013 depends on the v0.2 Control Room/query work. BIP-014 depends on BIP-013'
   - PAG connectivity check
   - provider configuration check without exposing secret values
 
-- [ ] **[BIP-016 — Distribution and reproducible installation](https://github.com/victorkay97/BIP-AI/issues/31)**
+- [x] **[BIP-016 — Distribution and reproducible installation](https://github.com/victorkay97/BIP-AI/issues/31)**
   - decide and document supported distribution forms
   - containerized/local installation path
   - reproducible release verification
@@ -150,7 +150,7 @@ BIP-016 should be finalized after the v0.2 runtime/config surface is stable.
 
 ## v0.2.0 definition of done
 
-- [ ] BIP-009 through BIP-016 are complete or explicitly deferred with rationale
+- [x] BIP-009 through BIP-016 are complete or explicitly deferred with rationale
 - [ ] migrations are backward-compatible from v0.1.0 state
 - [ ] self-hosted CI is green on the release commit
 - [ ] security/privacy boundaries remain fail-closed
