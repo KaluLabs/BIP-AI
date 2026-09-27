@@ -51,3 +51,22 @@ test('REVIEW privacy creates a campaign that cannot be treated as ready', () => 
   assert.equal(result.campaign.privacyResult, 'REVIEW');
   store.close();
 });
+
+
+test('stable external source ID deduplicates replay even if display text changes', () => {
+  const { store, app } = createApp();
+  const base = {
+    projectId: 'bip-ai',
+    type: 'milestone',
+    source: 'github',
+    occurredAt: '2026-09-27T10:00:00.000Z',
+    metadata: { externalId: 'github-event-123' },
+    userVisible: true
+  };
+  const first = app.ingest({ ...base, summary: 'Merged PR #7: old title' });
+  const second = app.ingest({ ...base, summary: 'Merged PR #7: edited title' });
+  assert.equal(first.accepted, true);
+  assert.equal(second.duplicate, true);
+  assert.equal(store.listEvents().length, 1);
+  store.close();
+});
