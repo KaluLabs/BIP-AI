@@ -133,6 +133,14 @@ test('run-due API performs an approval-gated PAG handoff and persists publicatio
     assert.equal(detail.body.campaign.platform.x.lifecycleStatus, 'published');
     assert.equal(detail.body.campaign.platform.x.schedule.status, 'published');
     assert.equal(detail.body.campaign.platform.linkedin.lifecycleStatus, 'approved');
+
+    const history = await jsonFetch(`${f.base}/api/campaigns/${f.campaign.id}/publishing-history?platform=x`);
+    assert.equal(history.response.status, 200);
+    assert.equal(history.body.attempts.length, 1);
+    assert.equal(history.body.attempts[0].platform, 'x');
+    assert.equal(history.body.attempts[0].status, 'completed');
+    assert.equal(history.body.attempts[0].campaignVersion, f.campaign.version);
+    assert.equal(history.body.attempts[0].contentHash, f.campaign.contentHash);
   } finally {
     await new Promise((resolve) => f.server.close(resolve));
     f.store.close();

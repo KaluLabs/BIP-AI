@@ -4,7 +4,8 @@ import { extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { approveCampaign, applyEditorial, resolvePrivacyReview } from './editorial.js';
 import { evaluatePrivacy, evaluateStoryworthiness } from './core.js';
-import { requestPagHandoff, reconcilePagHandoff } from './handoff.js';
+import { reconcilePagHandoff } from './handoff.js';
+import { decorateRetryEligibility, publishingHistory, reconcilePublishingAttempt, requestPublishingHandoff, retryPublishingHandoff } from './publishing-history.js';
 import { regenerateCampaignDrafts } from './drafting.js';
 import { ingestExternalUpdate } from './adapters/external-update.js';
 import { clearCampaignSchedule, listDueSchedules, runDueSchedules, scheduleCampaign } from './scheduling.js';
@@ -176,7 +177,40 @@ export function createBipServer({ store, projects, app = null, pagFactory = null
       if (req.method === 'POST' && path === '/api/schedules/run-due') {
         requireCsrf(req); if(!pagFactory) throw httpError(503,'PAG is not configured');
         const body=await bodyJson(req); const at=body.at || new Date().toISOString();
-        return json(res,200,await runDueSchedules(store,{pagFactory,connections,at}));
+        return json(res,200,await runDueSchedules(store,{
+          pagFactory,
+          connections,
+          at,
+          handoff: (campaign, platform, options) => requestPublishingHandoff(store, campaign, platform, options)
+        }));
+      }
+      if (req.method === 'GET' && /^\/api\/campaigns\/[^/]+\/publishing-history$/.test(path)) {
+        const id=decodeURIComponent(path.split('/')[3]);
+        const campaign=campaignOr404(store,id);
+        const platform=url.searchParams.get('platform') || null;
+        if(platform && !['x','linkedin'].includes(platform)) throw httpError(400,'platform must be x or linkedin');
+        const attempts=publishingHistory(store,{campaignId:id,platform});
+        return json(res,200,{attempts:decorateRetryEligibility(campaign,attempts)});
+      }
+      if (req.method === 'POST' && /^\/api\/campaigns\/[^/]+\/publishing\/(x|linkedin)\/retry$/.test(path)) {
+        requireCsrf(req); if(!pagFactory) throw httpError(503,'PAG is not configured');
+        const parts=path.split('/'); const id=decodeURIComponent(parts[3]); const platform=parts[5]; const body=await bodyJson(req);
+        if(!body.attemptId) throw httpError(400,'attemptId is required');
+        const campaign=exactCampaignVersion(campaignOr404(store,id),body);
+        const result=await retryPublishingHandoff(store,campaign,platform,{
+          pag:pagFactory(),
+          attemptId:body.attemptId,
+          connectionId:body.connectionId||connections[platform]||null
+        });
+        return json(res,200,result);
+      }
+      if (req.method === 'POST' && /^\/api\/campaigns\/[^/]+\/publishing\/(x|linkedin)\/reconcile$/.test(path)) {
+        requireCsrf(req); if(!pagFactory) throw httpError(503,'PAG is not configured');
+        const parts=path.split('/'); const id=decodeURIComponent(parts[3]); const platform=parts[5]; const body=await bodyJson(req);
+        if(!body.attemptId) throw httpError(400,'attemptId is required');
+        const campaign=campaignOr404(store,id);
+        const result=await reconcilePublishingAttempt(store,campaign,platform,{pag:pagFactory(),attemptId:body.attemptId});
+        return json(res,200,result);
       }
       if (req.method === 'GET' && /^\/api\/campaigns\/[^/]+$/.test(path)) {
         const id=decodeURIComponent(path.split('/').pop());
@@ -211,13 +245,24 @@ export function createBipServer({ store, projects, app = null, pagFactory = null
       if (req.method === 'POST' && /^\/api\/campaigns\/[^/]+\/handoff\/(x|linkedin)$/.test(path)) {
         requireCsrf(req); if(!pagFactory) throw httpError(503,'PAG is not configured');
         const parts=path.split('/'); const id=decodeURIComponent(parts[3]); const platform=parts[5]; const body=await bodyJson(req);
-        const result=await requestPagHandoff(campaignOr404(store,id),platform,{pag:pagFactory(),connectionId:body.connectionId||connections[platform]||null});
-        store.updateCampaignState(result.campaign); return json(res,200,result);
+        const current=campaignOr404(store,id);
+        const campaign=exactCampaignVersion(current,body);
+        const result=await requestPublishingHandoff(store,campaign,platform,{pag:pagFactory(),connectionId:body.connectionId||connections[platform]||null});
+        return json(res,200,result);
       }
       if (req.method === 'POST' && /^\/api\/campaigns\/[^/]+\/handoff\/(x|linkedin)\/reconcile$/.test(path)) {
         requireCsrf(req); if(!pagFactory) throw httpError(503,'PAG is not configured');
-        const parts=path.split('/'); const id=decodeURIComponent(parts[3]); const platform=parts[5]; await bodyJson(req);
-        const result=await reconcilePagHandoff(campaignOr404(store,id),platform,{pag:pagFactory()});
+        const parts=path.split('/'); const id=decodeURIComponent(parts[3]); const platform=parts[5]; const body=await bodyJson(req);
+        const campaign=campaignOr404(store,id);
+        const attempts=publishingHistory(store,{campaignId:id,platform});
+        const selected=body.attemptId
+          ? attempts.find((item)=>item.attemptId===body.attemptId)
+          : attempts.find((item)=>item.pagIntentId===campaign.platform?.[platform]?.pagActionId) || attempts[0];
+        if(selected) {
+          const result=await reconcilePublishingAttempt(store,campaign,platform,{pag:pagFactory(),attemptId:selected.attemptId});
+          return json(res,200,result);
+        }
+        const result=await reconcilePagHandoff(campaign,platform,{pag:pagFactory()});
         store.updateCampaignState(result.campaign); return json(res,200,result);
       }
 
@@ -240,7 +285,14 @@ export function createBipServer({ store, projects, app = null, pagFactory = null
     const tick = async () => {
       if (running) return;
       running = true;
-      try { await runDueSchedules(store, { pagFactory, connections, at: new Date() }); }
+      try {
+        await runDueSchedules(store, {
+          pagFactory,
+          connections,
+          at: new Date(),
+          handoff: (campaign, platform, options) => requestPublishingHandoff(store, campaign, platform, options)
+        });
+      }
       catch { /* per-item failures are persisted by the scheduling engine */ }
       finally { running = false; }
     };
