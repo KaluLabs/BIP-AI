@@ -1,5 +1,5 @@
 const state={
-  projects:[],events:[],campaigns:[],calendarCampaigns:[],approvalItems:[],capture:null,selected:null,config:{},
+  projects:[],events:[],campaigns:[],calendarCampaigns:[],approvalItems:[],capture:null,narrative:null,selected:null,config:{},
   eventPagination:null,campaignPagination:null,approvalPagination:null,approvalSummary:{total:0},loading:false
 };
 const $=(id)=>document.getElementById(id);
@@ -104,6 +104,7 @@ function setLoading(loading){
     $('events').innerHTML='<div class="loading-state">Loading events…</div>';
     $('campaigns').innerHTML='<div class="loading-state">Loading campaigns…</div>';
     $('calendar').innerHTML='<div class="loading-state calendar-loading">Loading schedule…</div>';
+    if(queryState().project)$('narrative-memory').innerHTML='<div class="loading-state">Loading narrative memory…</div>';
   }
 }
 
@@ -116,18 +117,23 @@ async function load(){
     const capturePromise=config.captureEnabled
       ? api('/api/capture/status').catch((error)=>({error:error.message,sources:[]}))
       : Promise.resolve(null);
-    const [events,campaigns,calendar,inbox,capture]=await Promise.all([
+    const selectedProject=queryState().project;
+    const narrativePromise=selectedProject
+      ? api(`/api/projects/${encodeURIComponent(selectedProject)}/narrative-memory`)
+      : Promise.resolve(null);
+    const [events,campaigns,calendar,inbox,capture,narrative]=await Promise.all([
       api(`/api/events?${apiParams('events')}`),
       api(`/api/campaigns?${apiParams('campaigns')}`),
       api(`/api/campaigns?${apiParams('campaigns',{calendar:true})}`),
       api(`/api/approval-inbox?${apiParams('inbox')}`),
-      capturePromise
+      capturePromise,
+      narrativePromise
     ]);
     state.events=events.events;state.eventPagination=events.pagination;
     state.campaigns=campaigns.campaigns;state.campaignPagination=campaigns.pagination;
     state.calendarCampaigns=calendar.campaigns;
     state.approvalItems=inbox.items;state.approvalPagination=inbox.pagination;state.approvalSummary=inbox.summary||{total:0};
-    state.capture=capture;
+    state.capture=capture;state.narrative=narrative;
     const selected=queryState().campaign;
     state.selected=selected||null;
     $('health').textContent=health.ok?'Local service online':'Unavailable';$('health').className=`pill ${health.ok?'good':'bad'}`;
@@ -140,6 +146,7 @@ async function load(){
     $('events').innerHTML=`<div class="error-state">${esc(error.message)}</div>`;
     $('campaigns').innerHTML=`<div class="error-state">${esc(error.message)}</div>`;
     $('calendar').innerHTML=`<div class="error-state calendar-loading">${esc(error.message)}</div>`;
+    $('narrative-memory').innerHTML=`<div class="error-state">${esc(error.message)}</div>`;
     notify(error.message,'error');
   }finally{state.loading=false}
 }
@@ -164,7 +171,7 @@ function syncFilterControls(){
   $('campaign-sort').value=q.csort;$('campaign-order').value=q.corder;
 }
 
-function render(){renderMetrics();renderApprovalInbox();renderProjects();renderCapture();renderEvents();renderCalendar();renderCampaigns()}
+function render(){renderMetrics();renderApprovalInbox();renderProjects();renderCapture();renderNarrative();renderEvents();renderCalendar();renderCampaigns()}
 function renderMetrics(){
   const review=state.campaigns.filter(c=>c.editorialStatus==='needs_review'||c.privacyResult==='REVIEW').length;
   const scheduled=state.calendarCampaigns.reduce((count,c)=>count+['x','linkedin'].filter(p=>c.platform?.[p]?.schedule?.status==='planned').length,0);
@@ -258,6 +265,78 @@ function renderCapture(){
     const sourceLabel=source.sourceType==='github'&&source.repository?`${source.sourceType} · ${source.repository}`:source.sourceType;
     return `<div class="capture-card"><div class="row spread"><strong>${esc(source.projectName||source.projectId)}</strong>${pill(h.status||'never_run')}</div><div class="capture-meta"><span>last success ${esc(when(h.lastSuccessAt))}</span>${next}${stats}${error}</div><div class="row spread"><span class="subtle">${esc(sourceLabel)}</span>${cursor}</div></div>`;
   }).join('');
+}
+
+function renderNarrative(){
+  const projectId=queryState().project;
+  const rebuild=$('rebuild-narrative');
+  if(!projectId){
+    state.narrative=null;
+    rebuild.disabled=true;
+    $('narrative-count').textContent='Choose a project';
+    $('narrative-memory').innerHTML='<div class="empty-list"><strong>Choose one project</strong><span>Use the project filter to inspect its story arcs and evidence.</span></div>';
+    return;
+  }
+  rebuild.disabled=false;
+  const memory=state.narrative?.memory;
+  const controls=state.narrative?.controls||[];
+  if(!memory){
+    $('narrative-count').textContent='Unavailable';
+    $('narrative-memory').innerHTML='<div class="empty-list"><strong>No memory loaded</strong><span>Refresh or rebuild the selected project memory.</span></div>';
+    return;
+  }
+  $('narrative-count').textContent=`${memory.counts?.entries||0} entries · ${memory.counts?.draftEligible||0} draft-ready`;
+  const byId=new Map((memory.entries||[]).map(entry=>[entry.id,entry]));
+  const arcs=(memory.storyArcs||[]).map(arc=>{
+    const entries=(arc.entryIds||[]).map(id=>byId.get(id)).filter(Boolean);
+    return `<section class="narrative-arc">
+      <div class="row spread"><h3>${esc(arc.title)}</h3><span class="subtle">${entries.length} item${entries.length===1?'':'s'}</span></div>
+      <div class="narrative-entry-list">${entries.map(entry=>{
+        const eventRef=entry.sources?.[0];
+        const actions=entry.state==='archived'
+          ? `<button class="button secondary narrative-action" data-entry="${esc(entry.id)}" data-action="restore">Restore</button><button class="button danger narrative-action" data-entry="${esc(entry.id)}" data-action="forget">Forget</button>`
+          : `<button class="button secondary narrative-action" data-entry="${esc(entry.id)}" data-action="archive">Archive</button><button class="button danger narrative-action" data-entry="${esc(entry.id)}" data-action="forget">Forget</button>`;
+        return `<article class="narrative-entry">
+          <div class="row spread"><div class="row">${pill(entry.state)}${pill(entry.privacy)}</div><span class="subtle">${esc(when(entry.occurredAt))}</span></div>
+          <p>${esc(entry.text)}</p>
+          <div class="narrative-provenance"><code>${esc(eventRef?.id||'unknown')}</code><span>${esc(eventRef?.path||'unknown source')}</span></div>
+          <div class="actions">${actions}</div>
+        </article>`;
+      }).join('')}</div>
+    </section>`;
+  }).join('');
+  const forgotten=controls.filter(item=>item.action==='forget');
+  const forgottenHtml=forgotten.length
+    ? `<section class="narrative-arc"><div class="row spread"><h3>Forgotten derived entries</h3><span class="subtle">${forgotten.length}</span></div><div class="narrative-entry-list">${forgotten.map(item=>`<article class="narrative-entry"><div class="row spread"><code>${esc(item.entryId)}</code><button class="button secondary narrative-action" data-entry="${esc(item.entryId)}" data-action="restore">Restore</button></div><p class="subtle">Hidden from derived memory; immutable source history is unchanged.</p></article>`).join('')}</div></section>`
+    : '';
+  $('narrative-memory').innerHTML=arcs||forgottenHtml
+    ? arcs+forgottenHtml
+    : '<div class="empty-list"><strong>No narrative entries yet</strong><span>Meaningful PASS/REVIEW project events will build this context automatically.</span></div>';
+  document.querySelectorAll('.narrative-action').forEach(el=>el.addEventListener('click',()=>narrativeAction(el.dataset.action,el.dataset.entry)));
+}
+
+async function narrativeAction(action,entryId){
+  const projectId=queryState().project;
+  if(!projectId||!entryId)return;
+  try{
+    const result=await api(`/api/projects/${encodeURIComponent(projectId)}/narrative-memory/${encodeURIComponent(entryId)}/${action}`,{method:'POST',body:'{}'});
+    state.narrative={memory:result.memory,controls:result.controls||[],rebuilt:true};
+    renderNarrative();
+    notify(`Narrative entry ${action}d`);
+  }catch(error){notify(error.message,'error')}
+}
+
+async function rebuildNarrative(){
+  const projectId=queryState().project;
+  if(!projectId)return;
+  const button=$('rebuild-narrative');button.disabled=true;
+  try{
+    const result=await api(`/api/projects/${encodeURIComponent(projectId)}/narrative-memory/rebuild`,{method:'POST',body:'{}'});
+    state.narrative={memory:result.memory,controls:result.controls||[],rebuilt:true};
+    renderNarrative();
+    notify('Narrative memory rebuilt from source state');
+  }catch(error){notify(error.message,'error')}
+  finally{button.disabled=false}
 }
 
 function renderEvents(){
@@ -506,6 +585,7 @@ $('run-capture').addEventListener('click',async()=>{
   finally{button.disabled=false}
 });
 $('project-form').addEventListener('submit',async(event)=>{event.preventDefault();const data=Object.fromEntries(new FormData(event.currentTarget));try{await api('/api/projects',{method:'POST',body:JSON.stringify(data)});event.currentTarget.reset();notify('Project capture source added');await load()}catch(error){notify(error.message,'error')}});
+$('rebuild-narrative').addEventListener('click',rebuildNarrative);
 $('refresh').addEventListener('click',load);
 addEventListener('popstate',load);
 load();
