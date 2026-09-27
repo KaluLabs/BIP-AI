@@ -9,14 +9,15 @@ import { GitHubActivityClient } from './capture/github.js';
 import { ProjectRegistry } from './projects.js';
 import { applyEditorial, approveCampaign, exportEditorial } from './editorial.js';
 import { PagClient } from './pag-client.js';
-import { requestPagHandoff, reconcilePagHandoff } from './handoff.js';
+import { reconcilePagHandoff } from './handoff.js';
+import { publishingHistory, reconcilePublishingAttempt, requestPublishingHandoff, retryPublishingHandoff } from './publishing-history.js';
 import { OpenAICompatibleDraftProvider, regenerateCampaignDrafts } from './drafting.js';
 import { createBipServer, listenBipServer } from './http-server.js';
 import { ingestExternalUpdate } from './adapters/external-update.js';
 import { exportApprovedStatusPackage } from './status-export.js';
 
 function usage() {
-  console.log(`BIP-AI v0.2-dev\n\nCommands:\n  event emit <event.json>\n  events list [projectId]\n  campaigns list [projectId]\n  campaigns show <campaignId>\n  campaigns versions <campaignId>\n  campaigns approve <campaignId>\n  editorial export <campaignId> [output.json]\n  editorial import <campaignId> <editorial.json>\n  inbox emit <event.json>\n  inbox process\n  git scan <projectId> <repoPath> [since]\n  projects add <projectId> <repoPath>\n  projects list\n  projects github <projectId> <owner/repo> [public|private]\n  projects github-clear <projectId>\n  capture run [projectId]\n  capture status\n  capture start\n  request-x <campaignId>\n  request-linkedin <campaignId>\n  handoff status <x|linkedin> <campaignId>\n  draft regenerate <campaignId>\n  external emit <update.json>\n  status export <campaignId> [output.json]\n  serve\n`);
+  console.log(`BIP-AI v0.2-dev\n\nCommands:\n  event emit <event.json>\n  events list [projectId]\n  campaigns list [projectId]\n  campaigns show <campaignId>\n  campaigns versions <campaignId>\n  campaigns approve <campaignId>\n  editorial export <campaignId> [output.json]\n  editorial import <campaignId> <editorial.json>\n  inbox emit <event.json>\n  inbox process\n  git scan <projectId> <repoPath> [since]\n  projects add <projectId> <repoPath>\n  projects list\n  projects github <projectId> <owner/repo> [public|private]\n  projects github-clear <projectId>\n  capture run [projectId]\n  capture status\n  capture start\n  request-x <campaignId>\n  request-linkedin <campaignId>\n  handoff status <x|linkedin> <campaignId>\n  publishing history <campaignId> [x|linkedin]\n  publishing retry <x|linkedin> <campaignId> <attemptId>\n  draft regenerate <campaignId>\n  external emit <update.json>\n  status export <campaignId> [output.json]\n  serve\n`);
 }
 
 function print(value) { console.log(JSON.stringify(value, null, 2)); }
@@ -120,22 +121,43 @@ try {
       process.once('SIGINT', stop); process.once('SIGTERM', stop);
     });
   } else if (command === 'request-x') {
-    const result = await requestPagHandoff(requireCampaign(store, subcommand), 'x', {
+    const result = await requestPublishingHandoff(store, requireCampaign(store, subcommand), 'x', {
       pag: createPag(), connectionId: process.env.BIP_AI_X_CONNECTION_ID || null
     });
-    store.updateCampaignState(result.campaign);
     print(result);
   } else if (command === 'request-linkedin') {
-    const result = await requestPagHandoff(requireCampaign(store, subcommand), 'linkedin', {
+    const result = await requestPublishingHandoff(store, requireCampaign(store, subcommand), 'linkedin', {
       pag: createPag(), connectionId: process.env.BIP_AI_LINKEDIN_CONNECTION_ID || null
     });
-    store.updateCampaignState(result.campaign);
     print(result);
   } else if (command === 'handoff' && subcommand === 'status') {
     if (!['x', 'linkedin'].includes(arg1) || !arg2) throw new Error('handoff status requires <x|linkedin> <campaignId>');
-    const result = await reconcilePagHandoff(requireCampaign(store, arg2), arg1, { pag: createPag() });
-    store.updateCampaignState(result.campaign);
-    print(result);
+    const campaign = requireCampaign(store, arg2);
+    const attempts = publishingHistory(store, { campaignId: campaign.id, platform: arg1 });
+    if (attempts.length) {
+      print(await reconcilePublishingAttempt(store, campaign, arg1, {
+        pag: createPag(), attemptId: attempts[0].attemptId
+      }));
+    } else {
+      const result = await reconcilePagHandoff(campaign, arg1, { pag: createPag() });
+      store.updateCampaignState(result.campaign);
+      print(result);
+    }
+  } else if (command === 'publishing' && subcommand === 'history') {
+    if (!arg1) throw new Error('publishing history requires <campaignId> [x|linkedin]');
+    if (arg2 && !['x', 'linkedin'].includes(arg2)) throw new Error('publishing history platform must be x or linkedin');
+    print(publishingHistory(store, { campaignId: arg1, platform: arg2 || null }));
+  } else if (command === 'publishing' && subcommand === 'retry') {
+    if (!['x', 'linkedin'].includes(arg1) || !arg2 || !arg3) {
+      throw new Error('publishing retry requires <x|linkedin> <campaignId> <attemptId>');
+    }
+    print(await retryPublishingHandoff(store, requireCampaign(store, arg2), arg1, {
+      pag: createPag(),
+      attemptId: arg3,
+      connectionId: arg1 === 'x'
+        ? process.env.BIP_AI_X_CONNECTION_ID || null
+        : process.env.BIP_AI_LINKEDIN_CONNECTION_ID || null
+    }));
   } else if (command === 'draft' && subcommand === 'regenerate') {
     const result = await regenerateCampaignDrafts(requireCampaign(store, arg1), { provider: createDraftProvider() });
     store.saveCampaignVersion(result.campaign);
