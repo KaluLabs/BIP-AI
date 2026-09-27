@@ -233,3 +233,20 @@ Privacy REVIEW cards do not expose normal approval controls. Open the campaign t
 PAG denied/failed cards are informational/action-routing items in BIP-013; safe retry controls arrive with BIP-014.
 
 See [Approval inbox](./APPROVAL-INBOX.md) for the full state model and API contract.
+
+
+## Publishing history and safe retries
+
+Campaign detail includes an append-only **Publishing history** view for X and LinkedIn.
+
+Each logical attempt shows its exact campaign version/content hash, normalized status, PAG intent correlation, retry ancestry, and minimal receipt/error context.
+
+**Sync receipt** reconciles a journaled PAG intent without rewriting prior history.
+
+**Retry safely** is rendered only when the server marks an attempt eligible. The browser sends the exact attempt ID plus the current rendered campaign version/content hash, and the server validates the approval again before any new PAG request.
+
+Duplicate retry actions against the same failed attempt collapse onto the same deterministic child attempt/idempotency key.
+
+PAG denial never receives a retry control.
+
+See [Publishing history and safe retries](./PUBLISHING-HISTORY.md) for journal semantics, restart behavior, and the API contract.
