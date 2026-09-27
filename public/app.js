@@ -116,7 +116,7 @@ async function load(){
     state.campaigns=campaigns.campaigns;state.campaignPagination=campaigns.pagination;
     state.calendarCampaigns=calendar.campaigns;
     const selected=queryState().campaign;
-    state.selected=selected||state.selected;
+    state.selected=selected||null;
     $('health').textContent=health.ok?'Local service online':'Unavailable';$('health').className=`pill ${health.ok?'good':'bad'}`;
     render();
     if(state.selected)await selectCampaign(state.selected,{updateUrl:false});
@@ -209,7 +209,7 @@ function renderPager(id,page,key){
 async function selectCampaign(id,{updateUrl=true}={}){
   try{
     state.selected=id;
-    if(updateUrl)setUrl({campaign:id});
+    if(updateUrl)setUrl({campaign:id},{replace:false});
     renderCampaigns();
     $('campaign-detail').className='loading-state detail-loading';$('campaign-detail').textContent='Loading campaign…';
     const {campaign,versions}=await api(`/api/campaigns/${encodeURIComponent(id)}`);
@@ -263,10 +263,10 @@ async function mutate(path,body,message){
 
 function applyFilters(values){
   const clearCampaign=Object.prototype.hasOwnProperty.call(values,'project')?{campaign:''}:{};
-  setUrl({...values,...clearCampaign},{resetPages:true});
+  setUrl({...values,...clearCampaign},{resetPages:true,replace:false});
   load();
 }
-function changePage(key,page){setUrl({[key]:page});load()}
+function changePage(key,page){setUrl({[key]:page},{replace:false});load()}
 
 $('filter-form').addEventListener('submit',(event)=>{
   event.preventDefault();
@@ -277,7 +277,7 @@ $('filter-form').addEventListener('submit',(event)=>{
   });
 });
 $('clear-filters').addEventListener('click',()=>{
-  setUrl({project:'',q:'',privacy:'',source:'',platform:'',status:'',from:'',to:'',campaign:''},{resetPages:true});
+  setUrl({project:'',q:'',privacy:'',source:'',platform:'',status:'',from:'',to:'',campaign:''},{resetPages:true,replace:false});
   load();
 });
 $('event-sort').addEventListener('change',()=>applyFilters({esort:$('event-sort').value}));
