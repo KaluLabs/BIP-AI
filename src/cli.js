@@ -15,9 +15,10 @@ import { createBipServer, listenBipServer } from './http-server.js';
 import { ingestExternalUpdate } from './adapters/external-update.js';
 import { exportApprovedStatusPackage } from './status-export.js';
 import { doctor, initializeSetup, nodeVersionStatus, promptSetupProject } from './setup.js';
+import { runtimeIdentity } from './version.js';
 
 function usage() {
-  console.log(`BIP-AI v0.2-dev\n\nCommands:\n  setup [projectId repoPath]\n  doctor\n  event emit <event.json>\n  events list [projectId]\n  campaigns list [projectId]\n  campaigns show <campaignId>\n  campaigns versions <campaignId>\n  campaigns approve <campaignId>\n  editorial export <campaignId> [output.json]\n  editorial import <campaignId> <editorial.json>\n  inbox emit <event.json>\n  inbox process\n  git scan <projectId> <repoPath> [since]\n  projects add <projectId> <repoPath>\n  projects list\n  projects github <projectId> <owner/repo> [public|private]\n  projects github-clear <projectId>\n  capture run [projectId]\n  capture status\n  capture start\n  request-x <campaignId>\n  request-linkedin <campaignId>\n  handoff status <x|linkedin> <campaignId>\n  publishing history <campaignId> [x|linkedin]\n  publishing retry <x|linkedin> <campaignId> <attemptId>\n  draft regenerate <campaignId>\n  external emit <update.json>\n  status export <campaignId> [output.json]\n  serve\n`);
+  console.log(`BIP-AI v0.2-dev\n\nCommands:\n  version\n  setup [projectId repoPath]\n  doctor\n  event emit <event.json>\n  events list [projectId]\n  campaigns list [projectId]\n  campaigns show <campaignId>\n  campaigns versions <campaignId>\n  campaigns approve <campaignId>\n  editorial export <campaignId> [output.json]\n  editorial import <campaignId> <editorial.json>\n  inbox emit <event.json>\n  inbox process\n  git scan <projectId> <repoPath> [since]\n  projects add <projectId> <repoPath>\n  projects list\n  projects github <projectId> <owner/repo> [public|private]\n  projects github-clear <projectId>\n  capture run [projectId]\n  capture status\n  capture start\n  request-x <campaignId>\n  request-linkedin <campaignId>\n  handoff status <x|linkedin> <campaignId>\n  publishing history <campaignId> [x|linkedin]\n  publishing retry <x|linkedin> <campaignId> <attemptId>\n  draft regenerate <campaignId>\n  external emit <update.json>\n  status export <campaignId> [output.json]\n  serve\n`);
 }
 
 function print(value) { console.log(JSON.stringify(value, null, 2)); }
@@ -41,7 +42,10 @@ const [command, subcommand, arg1, arg2, arg3] = process.argv.slice(2);
 if (!command) { usage(); process.exit(0); }
 
 let handledEarly = false;
-if (command === 'setup') {
+if (command === 'version' || command === '--version' || command === '-v') {
+  handledEarly = true;
+  print(runtimeIdentity());
+} else if (command === 'setup') {
   handledEarly = true;
   try {
     let projectId = subcommand || null;
