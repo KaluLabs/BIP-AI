@@ -18,6 +18,8 @@ The project follows Semantic Versioning once releases are tagged. During the `0.
 - Capture CLI controls and Control Room capture-health/manual-run surfaces.
 - Optional GitHub activity source for pushes, pull requests, issue closures, releases, and completed CI/workflow success/failure milestones.
 - Composite GitHub repository-event/workflow cursors with ETag polling, conservative private-repository review defaults, and explicit rate-limit handling.
+- Operational approval inbox with priority/age ordering, provenance preview, exact-version approval, stale-approval detection, blocked schedules, and PAG failure attention states.
+- Explicit privacy REVIEW resolution with immutable versioning and required operator rationale.
 
 ## 0.1.0 - 2026-09-27
 
