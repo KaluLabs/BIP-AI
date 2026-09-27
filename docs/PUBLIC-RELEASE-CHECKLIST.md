@@ -4,10 +4,13 @@ BIP-AI should not be switched to a public repository until every blocking item b
 
 ## Legal
 
-- [ ] Explicitly choose an open-source license.
-- [ ] Add the canonical `LICENSE` file.
-- [ ] Add the selected SPDX/license identifier to package metadata.
-- [ ] Review third-party dependency/action licenses for compatibility.
+- [x] Explicitly choose an open-source license: Apache License 2.0.
+- [x] Add the canonical `LICENSE` file.
+- [x] Add the selected SPDX/license identifier (`Apache-2.0`) to package metadata.
+- [x] Add project attribution information in `NOTICE`.
+- [x] Review current dependency/action licenses for compatibility.
+
+Current inventory: BIP-AI has no third-party npm runtime/development dependencies. The active CI workflow uses `actions/checkout@v4`, which is MIT-licensed and compatible with Apache-2.0.
 
 ## Security and repository settings
 

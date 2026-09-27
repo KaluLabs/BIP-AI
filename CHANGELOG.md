@@ -18,3 +18,4 @@ The project follows Semantic Versioning once releases are tagged. During the `0.
 - Local Control Room API/dashboard.
 - Transport-neutral real-world and WhatsApp update contract.
 - Approved-content export for a separate WhatsApp Status Manager.
+- Apache License 2.0 licensing and project NOTICE.
