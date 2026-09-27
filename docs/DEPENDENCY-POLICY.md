@@ -12,6 +12,19 @@ A convenience dependency is not enough reason to enlarge the trusted runtime sur
 
 Development-only tools may be added when they materially improve testing, static analysis, formatting, or contributor experience. Prefer pinned major versions and reproducible configuration.
 
+## Current license compatibility inventory
+
+BIP-AI itself is licensed under Apache-2.0.
+
+At the time of the Apache-2.0 licensing decision:
+
+- `package.json` contains no third-party runtime or development dependencies;
+- the application runtime uses Node.js built-ins;
+- the active GitHub Actions workflow uses `actions/checkout@v4`;
+- `actions/checkout` is MIT-licensed, which is compatible with an Apache-2.0 project.
+
+Any newly introduced dependency or action must have its license reviewed before public release or merge if the change affects distributable code.
+
 ## Automated updates
 
 Dependabot checks npm metadata and GitHub Actions monthly. Automated dependency PRs still require normal tests and review; they are not auto-merged by default.
