@@ -120,6 +120,7 @@ async function load(){
     $('health').textContent=health.ok?'Local service online':'Unavailable';$('health').className=`pill ${health.ok?'good':'bad'}`;
     render();
     if(state.selected)await selectCampaign(state.selected,{updateUrl:false});
+    else renderEmptyDetail();
   }catch(error){
     $('health').textContent='Service error';$('health').className='pill bad';
     $('events').innerHTML=`<div class="error-state">${esc(error.message)}</div>`;
@@ -204,6 +205,12 @@ function renderPager(id,page,key){
   const prev=el.querySelector('.pager-prev');const next=el.querySelector('.pager-next');
   if(page.hasPrevious)prev.onclick=()=>changePage(key,page.page-1);
   if(page.hasNext)next.onclick=()=>changePage(key,page.page+1);
+}
+
+function renderEmptyDetail(){
+  const el=$('campaign-detail');
+  el.className='empty-state';
+  el.innerHTML='<div class="empty-icon">↗</div><h3>Select a campaign</h3><p>Inspect drafts, provenance, versions, approvals, schedules, and PAG handoff state.</p>';
 }
 
 async function selectCampaign(id,{updateUrl=true}={}){
