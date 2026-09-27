@@ -37,11 +37,27 @@ test('filesystem inbox moves malformed JSON to failed with an error sidecar', ()
   assert.match(readFileSync(results[0].errorPath, 'utf8'), /Unexpected|JSON/);
 });
 
-test('project registry persists local project paths', () => {
+test('project registry persists local paths and optional GitHub source config without credentials', () => {
   const root = temp('bip-projects-');
   const registry = new ProjectRegistry(join(root, 'projects.json'));
-  const project = registry.add({ id: 'bip-ai', path: root });
+  const project = registry.add({
+    id: 'bip-ai',
+    path: root,
+    githubRepository: 'victorkay97/BIP-AI',
+    githubVisibility: 'private',
+    token: 'must-not-persist'
+  });
   assert.equal(registry.get('bip-ai').path, project.path);
+  assert.deepEqual(registry.get('bip-ai').github, {
+    repository: 'victorkay97/BIP-AI',
+    visibility: 'private'
+  });
+  assert.doesNotMatch(readFileSync(join(root, 'projects.json'), 'utf8'), /must-not-persist|token/i);
+
+  registry.setGithub('bip-ai', { repository: 'victorkay97/BIP-AI', visibility: 'public' });
+  assert.equal(registry.get('bip-ai').github.visibility, 'public');
+  registry.clearGithub('bip-ai');
+  assert.equal(registry.get('bip-ai').github, undefined);
 });
 
 test('conventional commit classifier maps useful commit types', () => {
