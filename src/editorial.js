@@ -2,6 +2,40 @@ import { campaignContentHash } from './core.js';
 
 function copy(value) { return structuredClone(value); }
 
+function invalidatePublishingState(next) {
+  next.campaignApproval = null;
+  next.pag = null;
+  const xSchedule = next.platform.x?.schedule?.status === 'planned' ? next.platform.x.schedule : null;
+  const linkedinSchedule = next.platform.linkedin?.schedule?.status === 'planned' ? next.platform.linkedin.schedule : null;
+  next.platform = {
+    x: {
+      ...next.platform.x,
+      schedule: xSchedule,
+      lifecycleStatus: xSchedule ? 'planned' : 'drafted',
+      handoffStatus: 'not_requested',
+      pagActionId: null,
+      pagApprovalId: null,
+      submittedVersion: null,
+      submittedContentHash: null,
+      pagArgsHash: null,
+      pagStatus: null
+    },
+    linkedin: {
+      ...next.platform.linkedin,
+      schedule: linkedinSchedule,
+      lifecycleStatus: linkedinSchedule ? 'planned' : 'drafted',
+      handoffStatus: 'not_requested',
+      pagActionId: null,
+      pagApprovalId: null,
+      submittedVersion: null,
+      submittedContentHash: null,
+      pagArgsHash: null,
+      pagStatus: null
+    }
+  };
+}
+
+
 function allowedClaimMap(storyBrief) {
   const entries = [['storyBrief.whatChanged', storyBrief.whatChanged]];
   storyBrief.implementation.forEach((text, i) => entries.push([`storyBrief.implementation[${i}]`, text]));
@@ -99,37 +133,45 @@ export function applyEditorial(campaign, editorial) {
     Object.values(next.editorialQuality).every((x) => x.result === 'PASS') ? 'PASS' : 'REVIEW';
   next.editorialStatus = 'needs_review';
   next.status = 'needs_review';
-  next.campaignApproval = null;
-  next.pag = null;
-  const xSchedule = next.platform.x?.schedule?.status === 'planned' ? next.platform.x.schedule : null;
-  const linkedinSchedule = next.platform.linkedin?.schedule?.status === 'planned' ? next.platform.linkedin.schedule : null;
-  next.platform = {
-    x: {
-      ...next.platform.x,
-      schedule: xSchedule,
-      lifecycleStatus: xSchedule ? 'planned' : 'drafted',
-      handoffStatus: 'not_requested',
-      pagActionId: null,
-      pagApprovalId: null,
-      submittedVersion: null,
-      submittedContentHash: null,
-      pagArgsHash: null,
-      pagStatus: null
-    },
-    linkedin: {
-      ...next.platform.linkedin,
-      schedule: linkedinSchedule,
-      lifecycleStatus: linkedinSchedule ? 'planned' : 'drafted',
-      handoffStatus: 'not_requested',
-      pagActionId: null,
-      pagApprovalId: null,
-      submittedVersion: null,
-      submittedContentHash: null,
-      pagArgsHash: null,
-      pagStatus: null
-    }
-  };
+  invalidatePublishingState(next);
   next.updatedAt = new Date().toISOString();
+  next.contentHash = contentHashFor(next);
+  return next;
+}
+
+
+export function resolvePrivacyReview(campaign, { decision, note, reviewedAt = new Date().toISOString() } = {}) {
+  if (!campaign) throw new TypeError('campaign is required');
+  if (campaign.privacyResult !== 'REVIEW') throw new Error('campaign is not awaiting privacy review');
+
+  const normalizedDecision = String(decision || '').trim().toUpperCase();
+  if (!['PASS', 'BLOCK'].includes(normalizedDecision)) {
+    throw new TypeError('privacy decision must be PASS or BLOCK');
+  }
+  const normalizedNote = String(note || '').trim();
+  if (!normalizedNote) throw new TypeError('privacy review note is required');
+
+  const date = new Date(reviewedAt);
+  if (Number.isNaN(date.getTime())) throw new TypeError('invalid privacy review timestamp');
+
+  const next = copy(campaign);
+  next.version += 1;
+  next.privacyReview = {
+    from: 'REVIEW',
+    decision: normalizedDecision,
+    note: normalizedNote,
+    reviewedAt: date.toISOString()
+  };
+  next.privacyResult = normalizedDecision;
+  next.privacy = {
+    ...(next.privacy || {}),
+    result: normalizedDecision,
+    reviewed: true
+  };
+  next.editorialStatus = 'needs_review';
+  next.status = 'needs_review';
+  invalidatePublishingState(next);
+  next.updatedAt = date.toISOString();
   next.contentHash = contentHashFor(next);
   return next;
 }

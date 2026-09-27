@@ -40,14 +40,28 @@ test('campaign detail includes immutable version history', async () => {
 
 test('mutations require CSRF header', async () => {
   const f=await fixture();
-  try { const {response}=await jsonFetch(`${f.base}/api/campaigns/${f.campaign.id}/approve`,{method:'POST',headers:{'content-type':'application/json'},body:'{}'}); assert.equal(response.status,403); }
+  try { const {response}=await jsonFetch(`${f.base}/api/campaigns/${f.campaign.id}/approve`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({version:f.campaign.version,contentHash:f.campaign.contentHash})}); assert.equal(response.status,403); }
   finally { await new Promise(r=>f.server.close(r)); f.store.close(); }
+});
+
+test('campaign detail approval rejects stale version preconditions', async () => {
+  const f=await fixture();
+  try {
+    const {response,body}=await jsonFetch(`${f.base}/api/campaigns/${f.campaign.id}/approve`,{
+      method:'POST',
+      headers:{'content-type':'application/json','x-bipai-csrf':'1'},
+      body:JSON.stringify({version:f.campaign.version+1,contentHash:f.campaign.contentHash})
+    });
+    assert.equal(response.status,409);
+    assert.match(body.error,/refresh the approval inbox/);
+    assert.equal(f.store.getCampaign(f.campaign.id).campaignApproval,null);
+  } finally { await new Promise(r=>f.server.close(r)); f.store.close(); }
 });
 
 test('campaign can be approved through same-origin mutation contract', async () => {
   const f=await fixture();
   try {
-    const {response,body}=await jsonFetch(`${f.base}/api/campaigns/${f.campaign.id}/approve`,{method:'POST',headers:{'content-type':'application/json','x-bipai-csrf':'1'},body:'{}'});
+    const {response,body}=await jsonFetch(`${f.base}/api/campaigns/${f.campaign.id}/approve`,{method:'POST',headers:{'content-type':'application/json','x-bipai-csrf':'1'},body:JSON.stringify({version:f.campaign.version,contentHash:f.campaign.contentHash})});
     assert.equal(response.status,200); assert.equal(body.campaign.editorialStatus,'approved_for_handoff'); assert.equal(body.campaign.campaignApproval.contentHash,body.campaign.contentHash);
   } finally { await new Promise(r=>f.server.close(r)); f.store.close(); }
 });

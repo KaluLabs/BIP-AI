@@ -87,6 +87,28 @@
         </form>
       </section>
 
+      <section class="panel approval-panel">
+        <div class="panel-head panel-head-wrap">
+          <div><p class="eyebrow">REVIEW OPERATIONS</p><h2>Approval inbox</h2></div>
+          <div class="panel-tools">
+            <span id="approval-count" class="pill muted"></span>
+            <select id="approval-category" aria-label="Approval inbox category">
+              <option value="">All attention</option>
+              <option value="privacy_review">Privacy review</option>
+              <option value="stale_approval">Stale approval</option>
+              <option value="awaiting_approval">Awaiting approval</option>
+              <option value="handoff_denied">Handoff denied</option>
+              <option value="handoff_failed">Handoff failed</option>
+              <option value="schedule_blocked">Schedule blocked</option>
+            </select>
+            <button id="approve-selected" class="button secondary" type="button" disabled>Approve selected</button>
+          </div>
+        </div>
+        <p class="subtle approval-help">One queue for privacy review, exact campaign approval, stale approvals, blocked schedules, and PAG publishing failures. Items disappear when the underlying state is resolved.</p>
+        <div id="approval-inbox" class="approval-list"><div class="loading-state">Loading approval inbox…</div></div>
+        <div id="approval-pager" class="pager"></div>
+      </section>
+
       <section class="grid two-col">
         <article class="panel">
           <div class="panel-head"><div><p class="eyebrow">CAPTURE</p><h2>Projects</h2></div></div>

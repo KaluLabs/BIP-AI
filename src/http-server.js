@@ -2,13 +2,14 @@ import http from 'node:http';
 import { readFileSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { approveCampaign, applyEditorial } from './editorial.js';
+import { approveCampaign, applyEditorial, resolvePrivacyReview } from './editorial.js';
 import { evaluatePrivacy, evaluateStoryworthiness } from './core.js';
 import { requestPagHandoff, reconcilePagHandoff } from './handoff.js';
 import { regenerateCampaignDrafts } from './drafting.js';
 import { ingestExternalUpdate } from './adapters/external-update.js';
 import { clearCampaignSchedule, listDueSchedules, runDueSchedules, scheduleCampaign } from './scheduling.js';
 import { parseListQuery, queryCampaigns, queryEvents, sourceIndex } from './query.js';
+import { buildApprovalInbox, exactCampaignVersion, parseApprovalInboxQuery, queryApprovalInbox } from './approval-inbox.js';
 
 const DEFAULT_PUBLIC_DIR = fileURLToPath(new URL('../public', import.meta.url));
 const MIME = { '.html':'text/html; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.css':'text/css; charset=utf-8', '.svg':'image/svg+xml' };
@@ -37,6 +38,16 @@ function requireCsrf(req) { if (req.headers['x-bipai-csrf'] !== '1') throw httpE
 function campaignOr404(store, id) { const value=store.getCampaign(id); if(!value) throw httpError(404, 'campaign not found'); return value; }
 function projectOr404(projects, id) { const value=projects.get(id); if(!value) throw httpError(404, 'project not found'); return value; }
 function enrichEvent(event, storyThreshold) { return { ...event, evaluation:evaluateStoryworthiness(event, storyThreshold), privacy:evaluatePrivacy(event) }; }
+
+function approvalInboxFor(store, now = new Date()) {
+  const campaigns = store.listCampaigns();
+  const events = store.listEvents();
+  const versionsByCampaign = new Map(
+    campaigns.map((campaign) => [campaign.id, store.listCampaignVersions(campaign.id)])
+  );
+  return buildApprovalInbox({ campaigns, events, versionsByCampaign, now });
+}
+
 
 export function createBipServer({ store, projects, app = null, pagFactory = null, draftProviderFactory = null, connections = {}, storyThreshold = 3, publicDir = DEFAULT_PUBLIC_DIR, safeConfig = {}, schedulePollMs = 30_000, captureScheduler = null } = {}) {
   if (!store || !projects) throw new TypeError('store and projects are required');
@@ -92,6 +103,65 @@ export function createBipServer({ store, projects, app = null, pagFactory = null
         const result=queryEvents(events,query);
         return json(res,200,{events:result.items,pagination:result.pagination,query});
       }
+      if (req.method === 'GET' && path === '/api/approval-inbox') {
+        const query=parseApprovalInboxQuery(url.searchParams);
+        const result=queryApprovalInbox(approvalInboxFor(store),query);
+        return json(res,200,{items:result.items,pagination:result.pagination,summary:result.summary,query});
+      }
+      if (req.method === 'POST' && path === '/api/approval-inbox/approve') {
+        requireCsrf(req);
+        const body=await bodyJson(req);
+        if(!Array.isArray(body.items) || body.items.length<1 || body.items.length>50) {
+          throw httpError(400,'items must contain between 1 and 50 approval targets');
+        }
+        const seen=new Set();
+        const inboxItems=approvalInboxFor(store);
+        const prepared=[];
+        for(const entry of body.items) {
+          const campaignId=String(entry?.campaignId||'').trim();
+          if(!campaignId) throw httpError(400,'campaignId is required');
+          if(seen.has(campaignId)) throw httpError(400,'duplicate campaignId in approval request');
+          seen.add(campaignId);
+          const campaign=exactCampaignVersion(store.getCampaign(campaignId),entry);
+          const attention=inboxItems.find((item)=>
+            item.campaignId===campaignId &&
+            ['awaiting_approval','stale_approval'].includes(item.category) &&
+            item.campaignVersion===campaign.version &&
+            item.campaignContentHash===campaign.contentHash
+          );
+          if(!attention) throw httpError(409,'campaign is no longer awaiting approval; refresh the inbox');
+          if(!attention.canApprove) throw httpError(409,`campaign cannot be approved: ${attention.approvalBlockers.join('; ')}`);
+          prepared.push(approveCampaign(campaign));
+        }
+        for(const campaign of prepared) store.updateCampaignState(campaign);
+        return json(res,200,{approved:prepared.map((campaign)=>({
+          campaignId:campaign.id,
+          version:campaign.version,
+          contentHash:campaign.contentHash,
+          approvedAt:campaign.campaignApproval?.approvedAt||null
+        }))});
+      }
+      if (req.method === 'POST' && /^\/api\/approval-inbox\/privacy\/[^/]+$/.test(path)) {
+        requireCsrf(req);
+        const campaignId=decodeURIComponent(path.split('/').pop());
+        const body=await bodyJson(req);
+        const campaign=exactCampaignVersion(store.getCampaign(campaignId),body);
+        const attention=approvalInboxFor(store).find((item)=>
+          item.campaignId===campaignId &&
+          item.category==='privacy_review' &&
+          item.campaignVersion===campaign.version &&
+          item.campaignContentHash===campaign.contentHash
+        );
+        if(!attention) throw httpError(409,'campaign is no longer awaiting privacy review; refresh the inbox');
+        let resolved;
+        try { resolved=resolvePrivacyReview(campaign,body); }
+        catch(error) {
+          if(error instanceof TypeError) throw httpError(400,error.message);
+          throw error;
+        }
+        store.saveCampaignVersion(resolved);
+        return json(res,200,{campaign:resolved});
+      }
       if (req.method === 'GET' && path === '/api/campaigns') {
         const query=parseListQuery(url.searchParams,'campaigns');
         const rawEvents=store.listEvents();
@@ -125,8 +195,14 @@ export function createBipServer({ store, projects, app = null, pagFactory = null
         const campaign=applyEditorial(campaignOr404(store,id),body); store.saveCampaignVersion(campaign); return json(res,200,{campaign});
       }
       if (req.method === 'POST' && /^\/api\/campaigns\/[^/]+\/approve$/.test(path)) {
-        requireCsrf(req); const id=decodeURIComponent(path.split('/')[3]); const campaign=approveCampaign(campaignOr404(store,id));
-        store.updateCampaignState(campaign); return json(res,200,{campaign});
+        requireCsrf(req);
+        const id=decodeURIComponent(path.split('/')[3]);
+        const body=await bodyJson(req);
+        const current=campaignOr404(store,id);
+        const exact=exactCampaignVersion(current,body);
+        const campaign=approveCampaign(exact);
+        store.updateCampaignState(campaign);
+        return json(res,200,{campaign});
       }
       if (req.method === 'POST' && /^\/api\/campaigns\/[^/]+\/draft\/regenerate$/.test(path)) {
         requireCsrf(req); const id=decodeURIComponent(path.split('/')[3]); const provider=draftProviderFactory ? draftProviderFactory() : null;

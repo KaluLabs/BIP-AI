@@ -29,6 +29,7 @@ The current development stack includes:
 - local Git scanner and filesystem event inbox
 - restart-safe automatic local Git capture with durable SHA cursors and bounded retry backoff
 - optional GitHub activity capture for pushes, PRs, issues, releases, and CI/workflow milestones
+- operational approval inbox for privacy review, exact approvals, stale approvals, blocked schedules, and PAG failures
 - immutable campaign versions
 - claim provenance and unsupported-claim review gating
 - exact `version + contentHash` campaign approvals
@@ -112,6 +113,7 @@ BIP-AI is licensed under the [Apache License 2.0](./LICENSE). See [NOTICE](./NOT
 - [Control Room](./docs/DASHBOARD.md)
 - [Automated local capture](./docs/CAPTURE.md)
 - [GitHub activity capture](./docs/GITHUB-CAPTURE.md)
+- [Approval inbox](./docs/APPROVAL-INBOX.md)
 - [External / WhatsApp adapters](./docs/EXTERNAL-ADAPTERS.md)
 - [Dependency policy](./docs/DEPENDENCY-POLICY.md)
 - [Release policy](./docs/RELEASING.md)
