@@ -234,3 +234,38 @@ test('publishing mutations require CSRF and history validates platform filter', 
     f.store.close();
   }
 });
+
+
+test('manual publishing handoff requires exact campaign version and content hash', async () => {
+  let calls = 0;
+  const f = await fixture({
+    pagFactory: () => ({
+      async createIntent() {
+        calls += 1;
+        return { id: 'must-not-run', status: 'succeeded' };
+      }
+    })
+  });
+  try {
+    const missing = await jsonFetch(
+      `${f.base}/api/campaigns/${f.campaign.id}/handoff/x`,
+      mutation({})
+    );
+    assert.equal(missing.response.status, 400);
+
+    const stale = await jsonFetch(
+      `${f.base}/api/campaigns/${f.campaign.id}/handoff/x`,
+      mutation({
+        version: f.campaign.version + 1,
+        contentHash: f.campaign.contentHash
+      })
+    );
+    assert.equal(stale.response.status, 409);
+    assert.match(stale.body.error, /campaign changed|refresh/i);
+    assert.equal(calls, 0);
+    assert.deepEqual(f.store.listPublishingJournal({ campaignId: f.campaign.id }), []);
+  } finally {
+    await new Promise((resolve) => f.server.close(resolve));
+    f.store.close();
+  }
+});
