@@ -22,6 +22,8 @@ The project follows Semantic Versioning once releases are tagged. During the `0.
 - Explicit privacy REVIEW resolution with immutable versioning and required operator rationale.
 - Append-only publishing/PAG journal with database-enforced immutability, exact version/content-hash attempt binding, receipt reconciliation, and platform-isolated outcome history.
 - Deterministic safe retry chains for retryable publishing failures; duplicate retry requests collapse to one logical retry and PAG denial remains terminal.
+- Restartable first-run setup with guided/non-interactive project registration and safe local-state initialization.
+- `doctor` diagnostics for Node/config/provider/PAG readiness with secret redaction and read-only PAG health checks.
 
 ## 0.1.0 - 2026-09-27
 

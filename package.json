@@ -21,6 +21,8 @@
   "scripts": {
     "start": "node ./src/cli.js",
     "serve": "node ./src/cli.js serve",
-    "test": "node --test"
+    "test": "node --test",
+    "setup": "node ./src/cli.js setup",
+    "doctor": "node ./src/cli.js doctor"
   }
 }
