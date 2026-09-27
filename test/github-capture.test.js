@@ -257,8 +257,13 @@ test('workflow rerun changes the attempt-aware cursor and emits a new milestone'
     async repositoryEvents(repository, { etag }) {
       return { notModified: true, data: null, etag, pollIntervalMs: 60000 };
     },
-    async workflowRuns() {
-      return { notModified: false, data: { workflow_runs: [rerun] }, etag: '"w2"', pollIntervalMs: 60000 };
+    async workflowRuns(repository, { page }) {
+      return {
+        notModified: false,
+        data: { workflow_runs: page === 1 ? [rerun] : [] },
+        etag: page === 1 ? '"w2"' : null,
+        pollIntervalMs: 60000
+      };
     }
   };
   const second = await scanGitHubActivity({
@@ -278,4 +283,44 @@ test('GitHub API base URL rejects embedded credentials', () => {
     () => new GitHubActivityClient({ baseUrl: 'https://user:secret@api.github.com' }),
     /must not contain credentials/
   );
+});
+
+
+test('repeated polling with changed ETag but same cursors emits no duplicate activity', async () => {
+  const feed = [
+    repoEvent('801', 'ReleaseEvent', {
+      action: 'published',
+      release: { id: 8, tag_name: 'v8', html_url: 'https://github.com/x/y/releases/8' }
+    })
+  ];
+  const runs = [{
+    id: 901,
+    status: 'completed',
+    conclusion: 'success',
+    name: 'CI',
+    run_number: 9,
+    run_attempt: 1,
+    head_branch: 'main',
+    html_url: 'https://github.com/x/y/actions/901',
+    updated_at: '2026-09-27T12:00:00.000Z'
+  }];
+  const client = {
+    async repositoryEvents() { return { notModified: false, data: feed, etag: '"changed-e"', pollIntervalMs: 60000 }; },
+    async workflowRuns() { return { notModified: false, data: { workflow_runs: runs }, etag: '"changed-w"', pollIntervalMs: 60000 }; }
+  };
+  const cursor = {
+    repository: 'victorkay97/BIP-AI',
+    events: { id: '801', etag: '"old-e"' },
+    workflows: { key: '901:1:2026-09-27T12:00:00.000Z', etag: '"old-w"' }
+  };
+  const result = await scanGitHubActivity({
+    client,
+    projectId: 'p',
+    repository: 'victorkay97/BIP-AI',
+    visibility: 'public',
+    cursor
+  });
+  assert.deepEqual(result.events, []);
+  assert.equal(result.cursor.events.id, '801');
+  assert.equal(result.cursor.workflows.key, '901:1:2026-09-27T12:00:00.000Z');
 });
