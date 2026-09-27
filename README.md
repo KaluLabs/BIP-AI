@@ -33,6 +33,7 @@ The current development stack includes:
 - PAG handoff for `x.threads.create` and `linkedin.posts.create`
 - pluggable guarded drafting provider with deterministic fallback
 - local Control Room dashboard/API
+- URL-backed Control Room search, filters, stable sorting, and pagination
 - per-platform editorial scheduling with timezone-aware planned handoffs
 - fail-closed due execution through PAG using current exact-version approval
 - transport-neutral real-world/WhatsApp update contract

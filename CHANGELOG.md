@@ -12,6 +12,8 @@ The project follows Semantic Versioning once releases are tagged. During the `0.
 - Persistent `drafted / approved / planned / handed_off / published / failed` lifecycle state.
 - Deterministic due/overdue schedule query and approval-gated scheduled PAG execution.
 - Control Room editorial calendar with schedule, reschedule, and clear controls.
+- URL-backed Control Room project/search/privacy/source/platform/status/date filters.
+- Strict server-side event/campaign query validation, stable sorting, and pagination.
 
 ## 0.1.0 - 2026-09-27
 

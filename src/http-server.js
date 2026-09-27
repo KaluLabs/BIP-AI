@@ -8,6 +8,7 @@ import { requestPagHandoff, reconcilePagHandoff } from './handoff.js';
 import { regenerateCampaignDrafts } from './drafting.js';
 import { ingestExternalUpdate } from './adapters/external-update.js';
 import { clearCampaignSchedule, listDueSchedules, runDueSchedules, scheduleCampaign } from './scheduling.js';
+import { parseListQuery, queryCampaigns, queryEvents, sourceIndex } from './query.js';
 
 const DEFAULT_PUBLIC_DIR = fileURLToPath(new URL('../public', import.meta.url));
 const MIME = { '.html':'text/html; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.css':'text/css; charset=utf-8', '.svg':'image/svg+xml' };
@@ -64,11 +65,16 @@ export function createBipServer({ store, projects, app = null, pagFactory = null
         return json(res,200,{ project, events:store.listEvents(id).map((event)=>enrichEvent(event,storyThreshold)), campaigns:store.listCampaigns(id) });
       }
       if (req.method === 'GET' && path === '/api/events') {
-        const projectId=url.searchParams.get('projectId');
-        return json(res,200,{events:store.listEvents(projectId).map((event)=>enrichEvent(event,storyThreshold))});
+        const query=parseListQuery(url.searchParams,'events');
+        const events=store.listEvents().map((event)=>enrichEvent(event,storyThreshold));
+        const result=queryEvents(events,query);
+        return json(res,200,{events:result.items,pagination:result.pagination,query});
       }
       if (req.method === 'GET' && path === '/api/campaigns') {
-        return json(res,200,{campaigns:store.listCampaigns(url.searchParams.get('projectId'))});
+        const query=parseListQuery(url.searchParams,'campaigns');
+        const rawEvents=store.listEvents();
+        const result=queryCampaigns(store.listCampaigns(),query,{sourceByEventId:sourceIndex(rawEvents)});
+        return json(res,200,{campaigns:result.items,pagination:result.pagination,query});
       }
       if (req.method === 'GET' && path === '/api/schedules/due') {
         const at=url.searchParams.get('at') || new Date().toISOString();
