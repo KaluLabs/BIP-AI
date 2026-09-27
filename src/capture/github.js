@@ -431,6 +431,11 @@ async function collectUntilCursor({
   };
 }
 
+function workflowCursorKey(run) {
+  if (!run?.id) return '';
+  return `${run.id}:${run.run_attempt || 1}:${run.updated_at || run.created_at || ''}`;
+}
+
 export async function scanGitHubActivity({
   client,
   projectId,
@@ -472,8 +477,8 @@ export async function scanGitHubActivity({
       const result = await client.workflowRuns(repository, { page, perPage: 100 });
       return { ...result, data: Array.isArray(result.data?.workflow_runs) ? result.data.workflow_runs : [] };
     },
-    cursorId: workflowsCursor.id || null,
-    itemId: (item) => String(item.id),
+    cursorId: workflowsCursor.key || null,
+    itemId: (item) => workflowCursorKey(item),
     maxPages,
     limit,
     initialWarning: sameRepository ? null : cursor ? 'repository_changed' : null
@@ -501,7 +506,7 @@ export async function scanGitHubActivity({
     cursor: {
       repository,
       events: { id: eventsResult.cursorId || null, etag: eventsResult.etag || null },
-      workflows: { id: workflowsResult.cursorId || null, etag: workflowsResult.etag || null }
+      workflows: { key: workflowsResult.cursorId || null, etag: workflowsResult.etag || null }
     },
     meta: {
       remaining: eventsResult.remaining + workflowsResult.remaining,
