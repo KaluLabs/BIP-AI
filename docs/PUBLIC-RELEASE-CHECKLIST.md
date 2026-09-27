@@ -74,7 +74,8 @@ The active self-hosted workflow verifies:
 ## Exposure review
 
 - [x] Scan every live branch head for sensitive filenames/local state.
-- [x] Scan all 93 commits reachable from retained branches for credential-shaped content and sensitive file additions/removals.
+- [x] Scan the retained pre-public development history for credential-shaped content and sensitive file additions/removals.
+- [x] Separately scan the later release-prep, checkout-v7, and immutable-pin hardening commits added after the first history pass.
 - [x] Confirm current `.env.example` secret values are blank.
 - [x] Confirm `.gitignore` excludes `.env`, `.bipai/`, SQLite/WAL state, node_modules, and coverage.
 - [x] Confirm no real private keys, GitHub/OpenAI/AWS/Slack credentials, PAG tokens, session stores, or similar sensitive artifacts were found.
@@ -83,4 +84,4 @@ The active self-hosted workflow verifies:
 
 ## Remaining release sequence
 
-Once this hardening change is merged and CI is green, the only remaining actions are visibility-dependent GitHub repository settings and creation of the `v0.1.0` tag/release.
+All pre-public repository work that can be completed while BIP-AI is private is done. The remaining actions are visibility-dependent GitHub repository settings and creation of the `v0.1.0` tag/release.
