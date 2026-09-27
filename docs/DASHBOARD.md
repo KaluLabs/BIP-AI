@@ -16,6 +16,9 @@ Environment settings:
 - `BIP_AI_PORT` — defaults to `8790`.
 - `BIP_AI_ALLOW_REMOTE` — defaults to `0`. A non-loopback bind is refused unless this is explicitly set to `1`.
 - `BIP_AI_SCHEDULE_POLL_MS` — defaults to `30000`. When PAG is configured, the local server checks due editorial schedules at this interval.
+- `BIP_AI_CAPTURE_ENABLED` — defaults to enabled; set to `0` to disable automatic local capture while serving the Control Room.
+- `BIP_AI_CAPTURE_POLL_MS` — defaults to `60000`.
+- `BIP_AI_CAPTURE_BATCH_SIZE` — defaults to `50` commits per project/cycle.
 
 ## What the dashboard exposes
 
@@ -34,6 +37,8 @@ Environment settings:
 - URL-backed project/search/filter/sort state
 - server-side pagination for event and campaign collections
 - deterministic event/campaign sorting with stable ID tie-breaking
+- per-project capture health, last success, retry state, SHA checkpoint, and last scan counts
+- manual capture run control for the selected project or all projects
 
 The dashboard may display local repository paths because it is an operator surface. It does not expose PAG actor tokens, drafting-provider API keys, or social-account credentials. `/api/config` returns only safe provider/configuration names, booleans, and non-secret scheduling settings.
 
@@ -169,3 +174,21 @@ Responses contain both the collection and pagination metadata:
 Campaign responses use the same `pagination` and `query` shape.
 
 Stable sorting always uses the record ID as a deterministic tie-breaker, preventing records with equal primary sort values from jumping between pages.
+
+
+## Automated capture in the Control Room
+
+When automatic capture is enabled, `serve` starts the same restart-safe capture scheduler documented in [CAPTURE.md](./CAPTURE.md).
+
+The **Capture health** panel shows one local Git source per registered project, including:
+
+- current source health;
+- last successful capture time;
+- next retry time when degraded;
+- last scan accepted/duplicate counts;
+- the current abbreviated SHA checkpoint;
+- safe failure code/summary when a source is unavailable.
+
+The **Run now** control performs an explicit one-shot scan. When a project is selected by the global project filter it targets only that project; otherwise it scans all registered projects.
+
+The Control Room never turns capture into publishing. Captured commits enter the same ProjectEvent/storyworthiness/privacy/editorial pipeline as manually emitted events. Approval and PAG remain separate downstream boundaries.
