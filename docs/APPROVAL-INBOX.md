@@ -129,7 +129,7 @@ An X denial does not create a LinkedIn denial item, and vice versa.
 
 Inbox items include the available non-secret action/approval IDs and current PAG status for operator context.
 
-BIP-013 does **not** add an automatic retry button. Safe idempotent publishing retries are part of BIP-014 and must retain exact approval/content-hash binding.
+BIP-014 adds safe idempotent publishing retries in the campaign's append-only Publishing history. The approval inbox still does not retry a PAG failure implicitly: the operator opens the campaign, inspects the exact attempt/history, and retries only an eligible attempt bound to the current exact approval.
 
 ## Schedule blocking
 
@@ -225,8 +225,8 @@ Content-Type: application/json
 
 Privacy decisions accept only `PASS` or `BLOCK`.
 
-## Relationship to BIP-014
+## Relationship to publishing history
 
-BIP-013 defines the operational attention model that BIP-014 will build on.
+The approval inbox remains the attention queue. Publishing history is the durable audit/retry surface underneath PAG handoffs.
 
-BIP-014 adds the append-only publishing/handoff journal and safe retry controls. The inbox intentionally does not invent retry semantics ahead of that journal.
+A failed/denied inbox item can navigate to the campaign, where BIP-014 exposes the immutable attempt chain and any safe retry/reconciliation controls.
