@@ -101,9 +101,33 @@ export function applyEditorial(campaign, editorial) {
   next.status = 'needs_review';
   next.campaignApproval = null;
   next.pag = null;
+  const xSchedule = next.platform.x?.schedule?.status === 'planned' ? next.platform.x.schedule : null;
+  const linkedinSchedule = next.platform.linkedin?.schedule?.status === 'planned' ? next.platform.linkedin.schedule : null;
   next.platform = {
-    x: { ...next.platform.x, handoffStatus: 'not_requested', pagActionId: null, pagApprovalId: null },
-    linkedin: { ...next.platform.linkedin, handoffStatus: 'not_requested', pagActionId: null, pagApprovalId: null }
+    x: {
+      ...next.platform.x,
+      schedule: xSchedule,
+      lifecycleStatus: xSchedule ? 'planned' : 'drafted',
+      handoffStatus: 'not_requested',
+      pagActionId: null,
+      pagApprovalId: null,
+      submittedVersion: null,
+      submittedContentHash: null,
+      pagArgsHash: null,
+      pagStatus: null
+    },
+    linkedin: {
+      ...next.platform.linkedin,
+      schedule: linkedinSchedule,
+      lifecycleStatus: linkedinSchedule ? 'planned' : 'drafted',
+      handoffStatus: 'not_requested',
+      pagActionId: null,
+      pagApprovalId: null,
+      submittedVersion: null,
+      submittedContentHash: null,
+      pagArgsHash: null,
+      pagStatus: null
+    }
   };
   next.updatedAt = new Date().toISOString();
   next.contentHash = contentHashFor(next);
@@ -125,6 +149,10 @@ export function approveCampaign(campaign) {
     contentHash: next.contentHash,
     approvedAt: new Date().toISOString()
   };
+  for (const platform of ['x', 'linkedin']) {
+    const target = next.platform?.[platform];
+    if (target) target.lifecycleStatus = target.schedule ? 'planned' : 'approved';
+  }
   next.updatedAt = new Date().toISOString();
   return next;
 }

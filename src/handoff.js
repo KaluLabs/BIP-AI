@@ -3,6 +3,25 @@ const PLATFORM = {
   linkedin: { capability: 'linkedin.posts.create' }
 };
 
+function syncLifecycle(target) {
+  if (!target) return;
+  const status = target.handoffStatus;
+  if (status === 'succeeded') {
+    target.lifecycleStatus = 'published';
+    if (target.schedule) target.schedule = { ...target.schedule, status: 'published', lastError: null };
+    return;
+  }
+  if (['failed', 'denied', 'expired'].includes(status)) {
+    target.lifecycleStatus = 'failed';
+    if (target.schedule) target.schedule = { ...target.schedule, status: 'failed', lastError: `pag_${status}` };
+    return;
+  }
+  if (['pending_approval', 'authorized', 'approved', 'executing'].includes(status)) {
+    target.lifecycleStatus = 'handed_off';
+    if (target.schedule) target.schedule = { ...target.schedule, status: 'handed_off', lastError: null };
+  }
+}
+
 export function assertHandoffReady(campaign) {
   if (!campaign) throw new TypeError('campaign is required');
   if (campaign.privacyResult !== 'PASS') throw new Error(`campaign privacy is ${campaign.privacyResult}`);
@@ -51,6 +70,7 @@ export async function requestPagHandoff(campaign, platform, { pag, connectionId 
   target.submittedContentHash = next.contentHash;
   target.pagArgsHash = intent.args_hash || approval?.args_hash || null;
   target.pagStatus = intent.status || null;
+  syncLifecycle(target);
   next.pag = {
     platform,
     actionRequestId: intent.id || null,
@@ -82,6 +102,7 @@ export async function reconcilePagHandoff(campaign, platform, { pag } = {}) {
   updated.pagArgsHash = intent.args_hash || updated.pagArgsHash || null;
   updated.pagStatus = intent.status || null;
   if (intent.execution) updated.execution = intent.execution;
+  syncLifecycle(updated);
   next.pag = {
     platform,
     actionRequestId: intent.id || target.pagActionId,
