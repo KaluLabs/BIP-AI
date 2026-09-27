@@ -1,6 +1,6 @@
 FROM node:22.23.2-bookworm-slim
 
-ARG BIP_AI_VERSION=0.1.0
+ARG BIP_AI_VERSION=0.2.0
 ARG BIP_AI_REVISION=unknown
 
 LABEL org.opencontainers.image.title="BIP-AI" \
