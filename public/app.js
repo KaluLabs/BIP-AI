@@ -323,8 +323,11 @@ async function selectCampaign(id,{updateUrl=true}={}){
     if(updateUrl)setUrl({campaign:id},{replace:false});
     renderCampaigns();
     $('campaign-detail').className='loading-state detail-loading';$('campaign-detail').textContent='Loading campaign…';
-    const {campaign,versions}=await api(`/api/campaigns/${encodeURIComponent(id)}`);
-    renderDetail(campaign,versions);
+    const [detail,history]=await Promise.all([
+      api(`/api/campaigns/${encodeURIComponent(id)}`),
+      api(`/api/campaigns/${encodeURIComponent(id)}/publishing-history`)
+    ]);
+    renderDetail(detail.campaign,detail.versions,history.attempts||[]);
   }catch(error){
     $('campaign-detail').className='error-state detail-loading';$('campaign-detail').textContent=error.message;
     notify(error.message,'error');
@@ -335,7 +338,7 @@ function schedulePanel(c,platform,label){
   const timing=schedule?`<p class="schedule-time"><strong>${esc(when(schedule.scheduledAtUtc))}</strong><br><span class="subtle">${esc(schedule.timezone||'UTC')} · ${esc(schedule.status)}</span></p>`:'<p class="subtle">No publication time planned.</p>';
   return `<div class="schedule-card"><div class="row spread"><strong>${esc(label)}</strong>${pill(target.lifecycleStatus||'drafted')}</div>${timing}<div class="field"><label>PLANNED LOCAL TIME</label><input id="${id}" type="datetime-local" value="${esc(toLocalInput(schedule?.scheduledAtUtc))}" /></div><div class="actions"><button class="button secondary" id="${id}-save">${schedule?'Reschedule':'Schedule'}</button>${schedule?`<button class="button danger" id="${id}-clear">Clear</button>`:''}</div>${schedule?.lastError?`<p class="schedule-error">Needs attention: ${esc(schedule.lastError)}</p>`:''}</div>`;
 }
-function renderDetail(c,versions){
+function renderDetail(c,versions,publishingAttempts=[]){
   const approval=c.campaignApproval;const claims=[...(c.drafts?.x?.claims||[]),...(c.drafts?.linkedin?.claims||[])];
   const uniqueClaims=[...new Map(claims.map(x=>[`${x.source}|${x.text}`,x])).values()];
   $('campaign-detail').className='';$('campaign-detail').innerHTML=`
@@ -345,6 +348,29 @@ function renderDetail(c,versions){
     <div class="section"><div class="row spread"><h3>Editorial schedule</h3><span class="subtle">Browser timezone: ${esc(browserTimezone())}</span></div><p class="subtle">Scheduling plans a PAG handoff; it never grants publishing authority. Due items still require a current exact-version approval.</p><div class="schedule-grid">${schedulePanel(c,'x','X')}${schedulePanel(c,'linkedin','LinkedIn')}</div></div>
     <div class="section"><h3>Drafts</h3><div class="draft-grid"><div class="field"><label>X THREAD — separate posts with ---</label><textarea id="x-draft">${esc((c.drafts?.x?.posts||[]).join('\n---\n'))}</textarea></div><div class="field"><label>LINKEDIN</label><textarea id="linkedin-draft">${esc(c.drafts?.linkedin?.text||'')}</textarea></div></div><div class="actions"><button class="button secondary" id="save-editorial">Save edits</button><button class="button secondary" id="regen-draft">Regenerate</button><button class="button" id="approve-campaign">Approve exact version</button></div></div>
     <div class="section"><h3>PAG handoff</h3><div class="draft-grid"><div><p>X</p>${pill(c.platform?.x?.handoffStatus)}<p class="hash">${esc(c.platform?.x?.pagActionId||'No intent yet')}</p><div class="actions"><button class="button secondary" id="request-x">Request X</button><button class="button secondary" id="sync-x">Sync</button></div></div><div><p>LinkedIn</p>${pill(c.platform?.linkedin?.handoffStatus)}<p class="hash">${esc(c.platform?.linkedin?.pagActionId||'No intent yet')}</p><div class="actions"><button class="button secondary" id="request-linkedin">Request LinkedIn</button><button class="button secondary" id="sync-linkedin">Sync</button></div></div></div></div>
+    <div class="section"><div class="row spread"><h3>Publishing history</h3><span class="subtle">${publishingAttempts.length} attempt${publishingAttempts.length===1?'':'s'}</span></div>
+      <p class="subtle">Append-only PAG handoff history. Retries remain bound to the exact approved campaign version and content hash.</p>
+      <div class="publishing-history">${publishingAttempts.length?publishingAttempts.map(attempt=>{
+        const platformLabel=attempt.platform==='x'?'X':'LinkedIn';
+        const receipt=attempt.receipt?.executionStatus?`<span>receipt ${esc(attempt.receipt.executionStatus)}${attempt.receipt.resultMode?` · ${esc(attempt.receipt.resultMode)}`:''}</span>`:'';
+        const retryOf=attempt.retryOf?`<span>retry of ${esc(attempt.retryOf)}</span>`:'';
+        const pag=attempt.pagIntentId?`<span>PAG ${esc(attempt.pagIntentId)}</span>`:'';
+        const error=attempt.errorCode?`<span class="publishing-error">${esc(attempt.errorCode)}</span>`:'';
+        const reconcile=attempt.pagIntentId&&!['completed','denied'].includes(attempt.status)
+          ?`<button class="button secondary publishing-reconcile" data-platform="${esc(attempt.platform)}" data-attempt="${esc(attempt.attemptId)}">Sync receipt</button>`:'';
+        const retry=attempt.retryEligible
+          ?`<button class="button publishing-retry" data-platform="${esc(attempt.platform)}" data-attempt="${esc(attempt.attemptId)}">Retry safely</button>`:'';
+        return `<article class="publishing-attempt">
+          <div class="row spread"><div class="row">${pill(platformLabel)}${pill(attempt.status)}</div><strong>Attempt ${attempt.attemptNumber}</strong></div>
+          <div class="publishing-meta">
+            <span>v${attempt.campaignVersion} · ${esc(attempt.contentHash.slice(0,12))}…</span>
+            <span>started ${esc(when(attempt.startedAt))}</span>
+            ${pag}${retryOf}${receipt}${error}
+          </div>
+          <div class="actions">${reconcile}${retry}</div>
+        </article>`;
+      }).join(''):'<div class="empty-list"><strong>No publishing attempts yet</strong><span>Approved X/LinkedIn handoffs will appear here.</span></div>'}</div>
+    </div>
     <div class="section"><h3>Claim provenance</h3><div class="claims">${uniqueClaims.length?uniqueClaims.map(x=>`<div class="claim"><code>${esc(x.source||'unsupported')}</code><p>${esc(x.text)}</p></div>`).join(''):'<p class="subtle">No claims recorded.</p>'}</div></div>
     <div class="section"><h3>Version history</h3><div class="versions">${versions.map(v=>`<div class="version">v${v.version} · ${esc(v.contentHash.slice(0,10))}… · ${esc(v.status)}</div>`).join('')}</div></div>
   `;
@@ -363,14 +389,36 @@ function wireDetail(c){
   $('save-editorial').onclick=()=>mutate(`/api/campaigns/${c.id}/editorial`,{x:{posts:$('x-draft').value.split(/\n---\n/g).map(x=>x.trim()).filter(Boolean)},linkedin:{text:$('linkedin-draft').value}},'Draft edits saved');
   $('regen-draft').onclick=()=>mutate(`/api/campaigns/${c.id}/draft/regenerate`,{},'Draft regenerated');
   $('approve-campaign').onclick=()=>mutate(`/api/campaigns/${c.id}/approve`,{version:c.version,contentHash:c.contentHash},'Exact campaign version approved');
-  $('request-x').onclick=()=>mutate(`/api/campaigns/${c.id}/handoff/x`,{},'X handoff requested');
-  $('request-linkedin').onclick=()=>mutate(`/api/campaigns/${c.id}/handoff/linkedin`,{},'LinkedIn handoff requested');
+  $('request-x').onclick=()=>mutate(`/api/campaigns/${c.id}/handoff/x`,{version:c.version,contentHash:c.contentHash},'X handoff requested');
+  $('request-linkedin').onclick=()=>mutate(`/api/campaigns/${c.id}/handoff/linkedin`,{version:c.version,contentHash:c.contentHash},'LinkedIn handoff requested');
   $('sync-x').onclick=()=>mutate(`/api/campaigns/${c.id}/handoff/x/reconcile`,{},'X handoff reconciled');
   $('sync-linkedin').onclick=()=>mutate(`/api/campaigns/${c.id}/handoff/linkedin/reconcile`,{},'LinkedIn handoff reconciled');
+  document.querySelectorAll('.publishing-retry').forEach(el=>el.addEventListener('click',()=>retryPublishing(c,el.dataset.platform,el.dataset.attempt)));
+  document.querySelectorAll('.publishing-reconcile').forEach(el=>el.addEventListener('click',()=>reconcilePublishing(c,el.dataset.platform,el.dataset.attempt)));
   for(const platform of ['x','linkedin']){
     $(`schedule-${platform}-save`).onclick=()=>{try{mutate(`/api/campaigns/${c.id}/schedule/${platform}`,scheduleBody(platform),`${platform==='x'?'X':'LinkedIn'} schedule saved`)}catch(error){notify(error.message,'error')}};
     const clear=$(`schedule-${platform}-clear`);if(clear)clear.onclick=()=>mutate(`/api/campaigns/${c.id}/schedule/${platform}/clear`,{},`${platform==='x'?'X':'LinkedIn'} schedule cleared`);
   }
+}
+async function retryPublishing(c,platform,attemptId){
+  try{
+    const result=await api(`/api/campaigns/${encodeURIComponent(c.id)}/publishing/${encodeURIComponent(platform)}/retry`,{
+      method:'POST',
+      body:JSON.stringify({attemptId,version:c.version,contentHash:c.contentHash})
+    });
+    notify(result.reused?'Retry already recorded':'Publishing retry requested');
+    await load();
+  }catch(error){notify(error.message,'error')}
+}
+async function reconcilePublishing(c,platform,attemptId){
+  try{
+    await api(`/api/campaigns/${encodeURIComponent(c.id)}/publishing/${encodeURIComponent(platform)}/reconcile`,{
+      method:'POST',
+      body:JSON.stringify({attemptId})
+    });
+    notify('Publishing receipt reconciled');
+    await load();
+  }catch(error){notify(error.message,'error')}
 }
 async function resolvePrivacy(c,decision){
   const note=$('privacy-review-note')?.value.trim();
