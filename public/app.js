@@ -362,7 +362,7 @@ function wireDetail(c){
   if(privacyBlock)privacyBlock.onclick=()=>resolvePrivacy(c,'BLOCK');
   $('save-editorial').onclick=()=>mutate(`/api/campaigns/${c.id}/editorial`,{x:{posts:$('x-draft').value.split(/\n---\n/g).map(x=>x.trim()).filter(Boolean)},linkedin:{text:$('linkedin-draft').value}},'Draft edits saved');
   $('regen-draft').onclick=()=>mutate(`/api/campaigns/${c.id}/draft/regenerate`,{},'Draft regenerated');
-  $('approve-campaign').onclick=()=>mutate(`/api/campaigns/${c.id}/approve`,{},'Exact campaign version approved');
+  $('approve-campaign').onclick=()=>mutate(`/api/campaigns/${c.id}/approve`,{version:c.version,contentHash:c.contentHash},'Exact campaign version approved');
   $('request-x').onclick=()=>mutate(`/api/campaigns/${c.id}/handoff/x`,{},'X handoff requested');
   $('request-linkedin').onclick=()=>mutate(`/api/campaigns/${c.id}/handoff/linkedin`,{},'LinkedIn handoff requested');
   $('sync-x').onclick=()=>mutate(`/api/campaigns/${c.id}/handoff/x/reconcile`,{},'X handoff reconciled');
