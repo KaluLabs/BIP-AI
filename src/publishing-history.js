@@ -137,7 +137,9 @@ export function summarizePublishingAttempts(entries = []) {
   const attempts = [];
   for (const [attemptId, group] of groups) {
     const events = [...group].sort((a, b) =>
-      a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id)
+      Number(a.sequence || 0) - Number(b.sequence || 0) ||
+      a.createdAt.localeCompare(b.createdAt) ||
+      a.id.localeCompare(b.id)
     );
     const first = events[0];
     const last = events[events.length - 1];
@@ -353,9 +355,11 @@ export async function reconcilePublishingAttempt(store, campaign, platform, {
   appendIntentOutcome(store, base, intent, 'reconciled');
 
   let nextCampaign = campaign;
+  const currentActionId = campaign.platform?.[platform]?.pagActionId || null;
   const matchesCurrent =
     campaign.version === attempt.campaignVersion &&
-    campaign.contentHash === attempt.contentHash;
+    campaign.contentHash === attempt.contentHash &&
+    (!currentActionId || currentActionId === attempt.pagIntentId);
 
   if (matchesCurrent) {
     const result = await reconcilePagHandoff(campaign, platform, {
