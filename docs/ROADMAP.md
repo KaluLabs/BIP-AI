@@ -166,7 +166,7 @@ The goal of v0.3.0 is to make BIP-AI increasingly useful over time by adding evi
 
 ### Wave A — contextual intelligence
 
-- [ ] **[BIP-017 — Project narrative memory and story arcs](https://github.com/victorkay97/BIP-AI/issues/54)**
+- [x] **[BIP-017 — Project narrative memory and story arcs](https://github.com/victorkay97/BIP-AI/issues/54)**
   - project-scoped durable narrative context derived from real events/campaigns
   - evidence/source references for every factual narrative item
   - deterministic backfill/rebuild from existing state
