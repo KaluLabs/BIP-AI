@@ -31,6 +31,7 @@ The current development stack includes:
 - optional GitHub activity capture for pushes, PRs, issues, releases, and CI/workflow milestones
 - operational approval inbox for privacy review, exact approvals, stale approvals, blocked schedules, and PAG failures
 - append-only publishing history with PAG receipt reconciliation and exact-payload safe retries
+- restartable first-run setup and redacted environment/PAG diagnostics
 - immutable campaign versions
 - claim provenance and unsupported-claim review gating
 - exact `version + contentHash` campaign approvals
@@ -48,14 +49,21 @@ The current development stack includes:
 
 Requires Node.js 22.5+.
 
+From a clean clone:
+
 ```bash
+npm install
+npm run setup -- bip-ai .
+npm run doctor
 npm test
-node ./src/cli.js event emit ./examples/project-event.json
-node ./src/cli.js campaigns list
-node ./src/cli.js serve
+npm run serve
 ```
 
-The default database is `.bipai/bip-ai.sqlite`. Copy `.env.example` for optional configuration.
+`setup` initializes the local SQLite/state directories, creates `.env` from the safe example when needed, and registers the project. Run `npm run setup` without arguments in an interactive terminal for guided project registration.
+
+The default drafting provider is deterministic and requires no API key. PAG is optional for local capture, drafting, review, and the Control Room; it is required only for external publishing handoffs and PAG receipt reconciliation.
+
+The default database is `.bipai/bip-ai.sqlite`. See [First-run setup](./docs/SETUP.md) for configuration, headless setup, safe diagnostics, and PAG/provider checks.
 
 ## Core pipeline
 
@@ -116,6 +124,7 @@ BIP-AI is licensed under the [Apache License 2.0](./LICENSE). See [NOTICE](./NOT
 - [GitHub activity capture](./docs/GITHUB-CAPTURE.md)
 - [Approval inbox](./docs/APPROVAL-INBOX.md)
 - [Publishing history and safe retries](./docs/PUBLISHING-HISTORY.md)
+- [First-run setup and doctor](./docs/SETUP.md)
 - [External / WhatsApp adapters](./docs/EXTERNAL-ADAPTERS.md)
 - [Dependency policy](./docs/DEPENDENCY-POLICY.md)
 - [Release policy](./docs/RELEASING.md)
