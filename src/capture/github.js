@@ -44,7 +44,10 @@ export class GitHubActivityClient {
   } = {}) {
     if (typeof fetchImpl !== 'function') throw new TypeError('fetch implementation is required');
     this.token = token ? String(token) : null;
-    this.baseUrl = String(baseUrl).replace(/\/$/, '');
+    const parsedBase = new URL(String(baseUrl));
+    if (!['http:', 'https:'].includes(parsedBase.protocol)) throw new TypeError('GitHub API base URL must use http or https');
+    if (parsedBase.username || parsedBase.password) throw new TypeError('GitHub API base URL must not contain credentials');
+    this.baseUrl = parsedBase.toString().replace(/\/$/, '');
     this.fetchImpl = fetchImpl;
   }
 
