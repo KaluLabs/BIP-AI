@@ -51,3 +51,16 @@ test('campaign can be approved through same-origin mutation contract', async () 
     assert.equal(response.status,200); assert.equal(body.campaign.editorialStatus,'approved_for_handoff'); assert.equal(body.campaign.campaignApproval.contentHash,body.campaign.contentHash);
   } finally { await new Promise(r=>f.server.close(r)); f.store.close(); }
 });
+
+
+test('dashboard shell is served with browser hardening headers', async () => {
+  const f=await fixture();
+  try {
+    const response=await fetch(`${f.base}/`); const html=await response.text();
+    assert.equal(response.status,200);
+    assert.match(response.headers.get('content-type')||'',/text\/html/);
+    assert.equal(response.headers.get('x-frame-options'),'DENY');
+    assert.match(response.headers.get('content-security-policy')||'',/default-src 'self'/);
+    assert.match(html,/BIP-AI Control Room/);
+  } finally { await new Promise(r=>f.server.close(r)); f.store.close(); }
+});
