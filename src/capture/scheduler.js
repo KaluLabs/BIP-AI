@@ -320,7 +320,6 @@ export class CaptureScheduler {
     if (this.timer) return false;
     void this.runOnce().catch(() => {});
     this.timer = setInterval(() => { void this.runOnce().catch(() => {}); }, this.pollMs);
-    this.timer.unref?.();
     return true;
   }
 
