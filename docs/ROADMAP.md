@@ -81,13 +81,13 @@ The goal of v0.2.0 is to make BIP-AI useful as an everyday operating surface rat
 
 ### Wave A — editorial workspace
 
-- [ ] **BIP-009 — Editorial calendar + scheduling**
+- [ ] **[BIP-009 — Editorial calendar + scheduling](https://github.com/victorkay97/BIP-AI/issues/24)**
   - date/time scheduling and timezone-aware planned publication
   - planned / drafted / approved / handed-off / published / failed states
   - rescheduling without invalidating content unless the payload changes
   - calendar APIs and Control Room interactions
 
-- [ ] **BIP-010 — Control Room search, filters, and navigation**
+- [ ] **[BIP-010 — Control Room search, filters, and navigation](https://github.com/victorkay97/BIP-AI/issues/25)**
   - project selector
   - event/campaign search
   - privacy/status/source/platform filters
@@ -98,14 +98,14 @@ BIP-009 and BIP-010 should be implemented in parallel against shared API/query c
 
 ### Wave B — automated capture
 
-- [ ] **BIP-011 — Automated local capture scheduler**
+- [ ] **[BIP-011 — Automated local capture scheduler](https://github.com/victorkay97/BIP-AI/issues/26)**
   - scheduled/continuous project scans
   - durable cursors
   - restart-safe processing
   - duplicate suppression
   - observable capture health
 
-- [ ] **BIP-012 — GitHub activity capture source**
+- [ ] **[BIP-012 — GitHub activity capture source](https://github.com/victorkay97/BIP-AI/issues/27)**
   - commits, pull requests, issues, releases, and CI milestones
   - optional authenticated access without storing raw credentials in BIP-AI state
   - normalized ProjectEvents
@@ -115,14 +115,14 @@ BIP-012 should reuse BIP-011 scheduling/cursor primitives where practical.
 
 ### Wave C — review and publication operations
 
-- [ ] **BIP-013 — Approval inbox**
+- [ ] **[BIP-013 — Approval inbox](https://github.com/victorkay97/BIP-AI/issues/28)**
   - drafts awaiting approval
   - privacy REVIEW items
   - stale approvals
   - failed/denied handoffs
   - actionable queue with provenance context
 
-- [ ] **BIP-014 — Publishing history and safe retries**
+- [ ] **[BIP-014 — Publishing history and safe retries](https://github.com/victorkay97/BIP-AI/issues/29)**
   - append-only handoff/publishing journal
   - platform-independent outcome tracking
   - PAG receipt reconciliation
@@ -133,14 +133,14 @@ BIP-013 depends on the v0.2 Control Room/query work. BIP-014 depends on BIP-013'
 
 ### Wave D — onboarding and distribution
 
-- [ ] **BIP-015 — First-run setup experience**
+- [ ] **[BIP-015 — First-run setup experience](https://github.com/victorkay97/BIP-AI/issues/30)**
   - setup/status doctor
   - guided project registration
   - environment/config validation
   - PAG connectivity check
   - provider configuration check without exposing secret values
 
-- [ ] **BIP-016 — Distribution and reproducible installation**
+- [ ] **[BIP-016 — Distribution and reproducible installation](https://github.com/victorkay97/BIP-AI/issues/31)**
   - decide and document supported distribution forms
   - containerized/local installation path
   - reproducible release verification
