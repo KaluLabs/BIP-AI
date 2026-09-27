@@ -6,6 +6,10 @@ The project follows Semantic Versioning once releases are tagged. During the `0.
 
 ## Unreleased
 
+No unreleased changes yet.
+
+## 0.2.0 - 2026-09-27
+
 ### Added
 
 - Per-platform editorial scheduling for X and LinkedIn with explicit RFC3339 timestamps and IANA timezone labels.
