@@ -37,6 +37,15 @@ export class BipStore {
         created_at TEXT NOT NULL,
         PRIMARY KEY(campaign_id, version)
       );
+      CREATE TABLE IF NOT EXISTS capture_sources (
+        source_key TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        source_type TEXT NOT NULL,
+        cursor_json TEXT,
+        health_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_capture_sources_project ON capture_sources(project_id, source_type);
     `);
   }
 
@@ -101,5 +110,60 @@ export class BipStore {
       ? this.db.prepare('SELECT payload_json FROM campaigns WHERE project_id = ? ORDER BY updated_at DESC').all(projectId)
       : this.db.prepare('SELECT payload_json FROM campaigns ORDER BY updated_at DESC').all();
     return rows.map((row) => JSON.parse(row.payload_json));
+  }
+
+  getCaptureState(sourceKey) {
+    const row = this.db.prepare(
+      'SELECT source_key, project_id, source_type, cursor_json, health_json, updated_at FROM capture_sources WHERE source_key = ?'
+    ).get(sourceKey);
+    if (!row) return null;
+    return {
+      sourceKey: row.source_key,
+      projectId: row.project_id,
+      sourceType: row.source_type,
+      cursor: row.cursor_json ? JSON.parse(row.cursor_json) : null,
+      health: JSON.parse(row.health_json),
+      updatedAt: row.updated_at
+    };
+  }
+
+  saveCaptureState({ sourceKey, projectId, sourceType, cursor = null, health = {}, updatedAt = new Date().toISOString() }) {
+    if (!sourceKey || !projectId || !sourceType) throw new TypeError('capture state requires sourceKey, projectId, and sourceType');
+    this.db.prepare(`
+      INSERT INTO capture_sources(source_key, project_id, source_type, cursor_json, health_json, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(source_key) DO UPDATE SET
+        project_id = excluded.project_id,
+        source_type = excluded.source_type,
+        cursor_json = excluded.cursor_json,
+        health_json = excluded.health_json,
+        updated_at = excluded.updated_at
+    `).run(
+      sourceKey,
+      projectId,
+      sourceType,
+      cursor == null ? null : JSON.stringify(cursor),
+      JSON.stringify(health || {}),
+      updatedAt
+    );
+    return this.getCaptureState(sourceKey);
+  }
+
+  listCaptureStates(projectId = null) {
+    const rows = projectId
+      ? this.db.prepare(
+        'SELECT source_key, project_id, source_type, cursor_json, health_json, updated_at FROM capture_sources WHERE project_id = ? ORDER BY project_id, source_type'
+      ).all(projectId)
+      : this.db.prepare(
+        'SELECT source_key, project_id, source_type, cursor_json, health_json, updated_at FROM capture_sources ORDER BY project_id, source_type'
+      ).all();
+    return rows.map((row) => ({
+      sourceKey: row.source_key,
+      projectId: row.project_id,
+      sourceType: row.source_type,
+      cursor: row.cursor_json ? JSON.parse(row.cursor_json) : null,
+      health: JSON.parse(row.health_json),
+      updatedAt: row.updated_at
+    }));
   }
 }
