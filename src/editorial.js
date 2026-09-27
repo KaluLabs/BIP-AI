@@ -43,6 +43,7 @@ function allowedClaimMap(storyBrief) {
   storyBrief.lessons.forEach((text, i) => entries.push([`storyBrief.lessons[${i}]`, text]));
   storyBrief.outcomes.forEach((text, i) => entries.push([`storyBrief.outcomes[${i}]`, text]));
   if (storyBrief.nextStep) entries.push(['storyBrief.nextStep', storyBrief.nextStep]);
+  (storyBrief.narrativeContext || []).forEach((item, i) => entries.push([`storyBrief.narrativeContext[${i}]`, item?.text]));
   return new Map(entries.filter(([, text]) => typeof text === 'string' && text.trim()));
 }
 
