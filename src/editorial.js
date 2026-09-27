@@ -101,10 +101,13 @@ export function applyEditorial(campaign, editorial) {
   next.status = 'needs_review';
   next.campaignApproval = null;
   next.pag = null;
+  const xSchedule = next.platform.x?.schedule?.status === 'planned' ? next.platform.x.schedule : null;
+  const linkedinSchedule = next.platform.linkedin?.schedule?.status === 'planned' ? next.platform.linkedin.schedule : null;
   next.platform = {
     x: {
       ...next.platform.x,
-      lifecycleStatus: next.platform.x?.schedule ? 'planned' : 'drafted',
+      schedule: xSchedule,
+      lifecycleStatus: xSchedule ? 'planned' : 'drafted',
       handoffStatus: 'not_requested',
       pagActionId: null,
       pagApprovalId: null,
@@ -115,7 +118,8 @@ export function applyEditorial(campaign, editorial) {
     },
     linkedin: {
       ...next.platform.linkedin,
-      lifecycleStatus: next.platform.linkedin?.schedule ? 'planned' : 'drafted',
+      schedule: linkedinSchedule,
+      lifecycleStatus: linkedinSchedule ? 'planned' : 'drafted',
       handoffStatus: 'not_requested',
       pagActionId: null,
       pagApprovalId: null,
