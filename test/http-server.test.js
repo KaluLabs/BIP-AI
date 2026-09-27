@@ -98,6 +98,14 @@ test('project GitHub source can be configured and cleared through CSRF-protected
     assert.deepEqual(configured.body.project.github,{repository:'victorkay97/BIP-AI',visibility:'private'});
     assert.doesNotMatch(JSON.stringify(configured.body),/do-not-store/);
 
+    const invalid=await jsonFetch(`${f.base}/api/projects/bip-ai/github`,{
+      method:'POST',
+      headers:{'content-type':'application/json','x-bipai-csrf':'1'},
+      body:JSON.stringify({repository:'not a repository',visibility:'private'})
+    });
+    assert.equal(invalid.response.status,400);
+    assert.match(invalid.body.error,/owner\/repo/);
+
     const cleared=await jsonFetch(`${f.base}/api/projects/bip-ai/github/clear`,{
       method:'POST',
       headers:{'content-type':'application/json','x-bipai-csrf':'1'},
