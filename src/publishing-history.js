@@ -175,7 +175,7 @@ export function summarizePublishingAttempts(entries = []) {
 export function publishingHistory(store, { campaignId, platform = null } = {}) {
   if (!store) throw new TypeError('store is required');
   if (!campaignId) throw new TypeError('campaignId is required');
-  assertPlatform(platform || 'x');
+  if (platform) assertPlatform(platform);
   const entries = store.listPublishingJournal({ campaignId, platform });
   return summarizePublishingAttempts(entries);
 }
