@@ -16,12 +16,13 @@ Development-only tools may be added when they materially improve testing, static
 
 BIP-AI itself is licensed under Apache-2.0.
 
-At the time of the Apache-2.0 licensing decision:
+At the time of the v0.1.0 release preparation:
 
 - `package.json` contains no third-party runtime or development dependencies;
 - the application runtime uses Node.js built-ins;
-- the active GitHub Actions workflow uses `actions/checkout@v4`;
-- `actions/checkout` is MIT-licensed, which is compatible with an Apache-2.0 project.
+- the active GitHub Actions workflow uses `actions/checkout` v7.0.1;
+- `actions/checkout` is MIT-licensed, which is compatible with an Apache-2.0 project;
+- CI pins checkout to the immutable official v7.0.1 commit `3d3c42e5aac5ba805825da76410c181273ba90b1`.
 
 Any newly introduced dependency or action must have its license reviewed before public release or merge if the change affects distributable code.
 
@@ -31,7 +32,7 @@ Dependabot checks npm metadata and GitHub Actions monthly. Automated dependency 
 
 ## GitHub Actions
 
-Pin marketplace actions to a maintained major tag at minimum. For a stable public release, prefer pinning security-sensitive third-party actions to immutable commit SHAs and document the update process.
+For release branches and the default branch, pin third-party marketplace actions to immutable commit SHAs and keep a human-readable version comment next to the pin. Dependabot can propose upgrades, which must still pass the self-hosted CI suite before merge.
 
 ## Security response
 
