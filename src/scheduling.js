@@ -229,7 +229,9 @@ export async function runDueSchedules(store, {
   for (const item of due) {
     const current = store.getCampaign(item.campaignId);
     if (!current) continue;
-    const pag = typeof pagFactory === 'function' ? pagFactory() : null;
+    let pag = null;
+    try { pag = typeof pagFactory === 'function' ? pagFactory() : null; }
+    catch { pag = null; }
     const result = await executeScheduledHandoff(current, item.platform, {
       pag,
       connectionId: connections[item.platform] || null,
