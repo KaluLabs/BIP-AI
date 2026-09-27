@@ -55,66 +55,71 @@ export function buildPagIntent(campaign, platform, { connectionId = null } = {})
   };
 }
 
-export async function requestPagHandoff(campaign, platform, { pag, connectionId = null } = {}) {
-  if (!pag || typeof pag.createIntent !== 'function') throw new TypeError('PAG client is required');
-  const request = buildPagIntent(campaign, platform, { connectionId });
-  const intent = await pag.createIntent(request.capability, request.args, { idempotencyKey: request.idempotencyKey });
-
+export function applyPagIntent(campaign, platform, intent, { capability = null } = {}) {
+  if (!campaign) throw new TypeError('campaign is required');
+  const spec = PLATFORM[platform];
+  if (!spec) throw new Error(`unsupported platform: ${platform}`);
   const next = structuredClone(campaign);
-  const approval = intent.approval || null;
-  const target = next.platform[platform];
-  target.handoffStatus = mapIntentStatus(intent.status);
-  target.pagActionId = intent.id || null;
-  target.pagApprovalId = approval?.id || null;
+  const approval = intent?.approval || null;
+  const target = next.platform?.[platform];
+  if (!target) throw new Error(`campaign has no ${platform} platform state`);
+
+  target.handoffStatus = mapIntentStatus(intent?.status);
+  target.pagActionId = intent?.id || target.pagActionId || null;
+  target.pagApprovalId = approval?.id || target.pagApprovalId || null;
   target.submittedVersion = next.version;
   target.submittedContentHash = next.contentHash;
-  target.pagArgsHash = intent.args_hash || approval?.args_hash || null;
-  target.pagStatus = intent.status || null;
+  target.pagArgsHash = intent?.args_hash || approval?.args_hash || target.pagArgsHash || null;
+  target.pagStatus = intent?.status || null;
+  if (intent?.execution) target.execution = intent.execution;
   syncLifecycle(target);
+
   next.pag = {
     platform,
-    actionRequestId: intent.id || null,
-    approvalId: approval?.id || null,
-    capability: request.capability,
-    argsHash: intent.args_hash || approval?.args_hash || null,
-    status: intent.status || null
+    actionRequestId: intent?.id || target.pagActionId || null,
+    approvalId: approval?.id || target.pagApprovalId || null,
+    capability: capability || intent?.capability || spec.capability,
+    argsHash: intent?.args_hash || approval?.args_hash || target.pagArgsHash || null,
+    status: intent?.status || null
   };
-  next.status = ['succeeded', 'failed', 'denied', 'expired'].includes(intent.status)
+  next.status = ['succeeded', 'failed', 'denied', 'expired'].includes(intent?.status)
     ? `handoff_${intent.status}`
     : 'handoff_requested';
   next.updatedAt = new Date().toISOString();
-  return { campaign: next, intent, request };
+  return next;
 }
 
-export async function reconcilePagHandoff(campaign, platform, { pag } = {}) {
+export async function requestPagHandoff(campaign, platform, {
+  pag,
+  connectionId = null,
+  idempotencyKey = null
+} = {}) {
+  if (!pag || typeof pag.createIntent !== 'function') throw new TypeError('PAG client is required');
+  const request = buildPagIntent(campaign, platform, { connectionId });
+  const effectiveIdempotencyKey = idempotencyKey || request.idempotencyKey;
+  const intent = await pag.createIntent(request.capability, request.args, { idempotencyKey: effectiveIdempotencyKey });
+  const next = applyPagIntent(campaign, platform, intent, { capability: request.capability });
+  return {
+    campaign: next,
+    intent,
+    request: { ...request, idempotencyKey: effectiveIdempotencyKey }
+  };
+}
+
+export async function reconcilePagHandoff(campaign, platform, { pag, pagIntentId = null } = {}) {
   if (!pag || typeof pag.getIntent !== 'function') throw new TypeError('PAG client is required');
   const target = campaign?.platform?.[platform];
-  if (!target?.pagActionId) throw new Error(`no PAG handoff exists for ${platform}`);
-  if (target.submittedVersion !== campaign.version || target.submittedContentHash !== campaign.contentHash) {
+  const intentId = pagIntentId || target?.pagActionId;
+  if (!intentId) throw new Error(`no PAG handoff exists for ${platform}`);
+  if (
+    target?.submittedVersion != null &&
+    (target.submittedVersion !== campaign.version || target.submittedContentHash !== campaign.contentHash)
+  ) {
     throw new Error('stored PAG handoff belongs to a stale campaign version/content hash');
   }
 
-  const intent = await pag.getIntent(target.pagActionId);
-  const next = structuredClone(campaign);
-  const updated = next.platform[platform];
-  updated.handoffStatus = mapIntentStatus(intent.status);
-  updated.pagApprovalId = intent.approval?.id || updated.pagApprovalId || null;
-  updated.pagArgsHash = intent.args_hash || updated.pagArgsHash || null;
-  updated.pagStatus = intent.status || null;
-  if (intent.execution) updated.execution = intent.execution;
-  syncLifecycle(updated);
-  next.pag = {
-    platform,
-    actionRequestId: intent.id || target.pagActionId,
-    approvalId: intent.approval?.id || updated.pagApprovalId || null,
-    capability: intent.capability || null,
-    argsHash: intent.args_hash || updated.pagArgsHash || null,
-    status: intent.status || null
-  };
-  next.status = ['succeeded', 'failed', 'denied', 'expired'].includes(intent.status)
-    ? `handoff_${intent.status}`
-    : 'handoff_requested';
-  next.updatedAt = new Date().toISOString();
+  const intent = await pag.getIntent(intentId);
+  const next = applyPagIntent(campaign, platform, intent);
   return { campaign: next, intent };
 }
 
