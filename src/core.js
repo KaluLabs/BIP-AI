@@ -209,8 +209,8 @@ export function createCampaign(event, evaluation, privacy) {
     privacyResult: privacy.result,
     privacy,
     platform: {
-      x: { draftStatus: 'ready', handoffStatus: 'not_requested', pagActionId: null, pagApprovalId: null },
-      linkedin: { draftStatus: 'ready', handoffStatus: 'not_requested', pagActionId: null, pagApprovalId: null }
+      x: { draftStatus: 'ready', lifecycleStatus: 'drafted', handoffStatus: 'not_requested', pagActionId: null, pagApprovalId: null, schedule: null },
+      linkedin: { draftStatus: 'ready', lifecycleStatus: 'drafted', handoffStatus: 'not_requested', pagActionId: null, pagApprovalId: null, schedule: null }
     },
     campaignApproval: null,
     createdAt: now,
