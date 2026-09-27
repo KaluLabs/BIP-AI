@@ -1,0 +1,197 @@
+name: Publish BIP-AI v0.2.0
+
+on:
+  push:
+    branches:
+      - release/v0.2.0-artifacts
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: self-hosted
+    timeout-minutes: 15
+    env:
+      RELEASE_SHA: 9d4f550ccedbcd62c5fc56214a910c9a4932b7d6
+      RELEASE_VERSION: 0.2.0
+      RELEASE_TAG: v0.2.0
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check out exact verified release commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git checkout --detach "$RELEASE_SHA"
+          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+          test "$(node -p "require('./package.json').version")" = "$RELEASE_VERSION"
+          test "$(node -p "require('./package.json').private")" = "true"
+
+      - name: Audit exact release tree
+        run: npm run audit:release
+
+      - name: Build release artifacts twice and verify reproducibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run dist -- --version="$RELEASE_VERSION"
+          first="$(sha256sum "dist/bip-ai-v$RELEASE_VERSION.tar.gz" | awk '{print $1}')"
+          cp "dist/bip-ai-v$RELEASE_VERSION.tar.gz" /tmp/bip-ai-v020-first.tar.gz
+
+          npm run dist -- --version="$RELEASE_VERSION"
+          second="$(sha256sum "dist/bip-ai-v$RELEASE_VERSION.tar.gz" | awk '{print $1}')"
+
+          test "$first" = "$second"
+          cmp /tmp/bip-ai-v020-first.tar.gz "dist/bip-ai-v$RELEASE_VERSION.tar.gz"
+          grep -F "$first  bip-ai-v$RELEASE_VERSION.tar.gz" dist/SHA256SUMS.txt
+
+          node -e "const m=require('./dist/release-manifest.json'); if(m.version!==process.env.RELEASE_VERSION||m.revision!==process.env.RELEASE_SHA||m.npmPublication!==false) process.exit(1); console.log(JSON.stringify(m,null,2))"
+
+          mkdir -p release-assets
+          cp "dist/bip-ai-v$RELEASE_VERSION.tar.gz" release-assets/
+          cp dist/SHA256SUMS.txt release-assets/
+          cp dist/release-manifest.json release-assets/
+          printf '%s\n' "$first" > release-assets/VERIFIED_SHA256.txt
+
+      - name: Preserve verified bundle as workflow artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: bip-ai-v0.2.0-release-assets
+          path: release-assets/
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+      - name: Create annotated tag, upload assets, and publish GitHub release
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { readFile } from 'node:fs/promises';
+
+          const token = process.env.GH_TOKEN;
+          const repo = process.env.GITHUB_REPOSITORY;
+          const releaseSha = process.env.RELEASE_SHA;
+          const version = process.env.RELEASE_VERSION;
+          const tag = process.env.RELEASE_TAG;
+          if (!token || !repo || !releaseSha || !version || !tag) throw new Error('missing release environment');
+
+          const api = `https://api.github.com/repos/${repo}`;
+          const headers = {
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/vnd.github+json',
+            'X-GitHub-Api-Version': '2022-11-28',
+            'User-Agent': 'BIP-AI-release-workflow'
+          };
+
+          async function request(url, options = {}, allow404 = false) {
+            const response = await fetch(url, {
+              ...options,
+              headers: { ...headers, ...(options.headers || {}) }
+            });
+            if (allow404 && response.status === 404) return null;
+            const text = await response.text();
+            if (!response.ok) throw new Error(`${options.method || 'GET'} ${url}: ${response.status} ${text}`);
+            if (!text) return null;
+            return JSON.parse(text);
+          }
+
+          let ref = await request(`${api}/git/ref/tags/${encodeURIComponent(tag)}`, {}, true);
+          if (!ref) {
+            const tagObject = await request(`${api}/git/tags`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                tag,
+                message: `BIP-AI ${tag}`,
+                object: releaseSha,
+                type: 'commit'
+              })
+            });
+            ref = await request(`${api}/git/refs`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ref: `refs/tags/${tag}`, sha: tagObject.sha })
+            });
+          }
+
+          if (ref.object?.type !== 'tag') throw new Error(`${tag} exists but is not an annotated tag`);
+          const tagObject = await request(`${api}/git/tags/${ref.object.sha}`);
+          if (tagObject.object?.sha !== releaseSha || tagObject.object?.type !== 'commit') {
+            throw new Error(`${tag} does not resolve to exact release commit ${releaseSha}`);
+          }
+
+          const releases = await request(`${api}/releases?per_page=100`);
+          let release = releases.find((item) => item.tag_name === tag);
+          const notes = await readFile('docs/releases/v0.2.0.md', 'utf8');
+
+          if (!release) {
+            release = await request(`${api}/releases`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                tag_name: tag,
+                target_commitish: releaseSha,
+                name: `BIP-AI ${tag}`,
+                body: notes,
+                draft: true,
+                prerelease: false
+              })
+            });
+          } else if (!release.draft) {
+            throw new Error(`release ${tag} is already published; refusing to mutate it`);
+          }
+
+          const desired = [
+            { name: `bip-ai-v${version}.tar.gz`, path: `release-assets/bip-ai-v${version}.tar.gz`, type: 'application/gzip' },
+            { name: 'SHA256SUMS.txt', path: 'release-assets/SHA256SUMS.txt', type: 'text/plain' },
+            { name: 'release-manifest.json', path: 'release-assets/release-manifest.json', type: 'application/json' }
+          ];
+
+          const existingAssets = await request(`${api}/releases/${release.id}/assets?per_page=100`);
+          for (const asset of existingAssets) {
+            if (desired.some((item) => item.name === asset.name)) {
+              await request(`${api}/releases/assets/${asset.id}`, { method: 'DELETE' });
+            }
+          }
+
+          for (const item of desired) {
+            const bytes = await readFile(item.path);
+            const uploadUrl = `https://uploads.github.com/repos/${repo}/releases/${release.id}/assets?name=${encodeURIComponent(item.name)}`;
+            await request(uploadUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': item.type,
+                'Content-Length': String(bytes.length)
+              },
+              body: bytes
+            });
+          }
+
+          const finalAssets = await request(`${api}/releases/${release.id}/assets?per_page=100`);
+          for (const item of desired) {
+            const asset = finalAssets.find((candidate) => candidate.name === item.name);
+            if (!asset || !asset.size) throw new Error(`missing or empty release asset: ${item.name}`);
+          }
+
+          release = await request(`${api}/releases/${release.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: `BIP-AI ${tag}`,
+              body: notes,
+              draft: false,
+              prerelease: false
+            })
+          });
+
+          console.log(JSON.stringify({
+            tag,
+            releaseSha,
+            releaseUrl: release.html_url,
+            published: !release.draft,
+            assets: finalAssets.map(({ name, size }) => ({ name, size }))
+          }, null, 2));
+          NODE
