@@ -13,6 +13,7 @@ export function allowedStoryClaims(storyBrief) {
   storyBrief.decisions.forEach((text, i) => add(`storyBrief.decisions[${i}]`, text));
   storyBrief.lessons.forEach((text, i) => add(`storyBrief.lessons[${i}]`, text));
   add('storyBrief.nextStep', storyBrief.nextStep);
+  (storyBrief.narrativeContext || []).forEach((item, i) => add(`storyBrief.narrativeContext[${i}]`, item?.text));
   return claims;
 }
 
@@ -31,28 +32,30 @@ export function validateGeneratedEditorial(editorial, storyBrief) {
   return { valid, structure, claims };
 }
 
-export async function regenerateCampaignDrafts(campaign, { provider = null } = {}) {
+export async function regenerateCampaignDrafts(campaign, { provider = null, narrativeContext = null } = {}) {
   if (!campaign) throw new TypeError('campaign is required');
+  const working = structuredClone(campaign);
+  if (Array.isArray(narrativeContext)) working.storyBrief.narrativeContext = structuredClone(narrativeContext);
   const fallback = (reason = null) => {
-    const next = applyEditorial(campaign, deterministicEditorial(campaign));
+    const next = applyEditorial(working, deterministicEditorial(working));
     next.draftGeneration = { mode: 'deterministic', provider: null, fallbackUsed: Boolean(reason), fallbackReason: reason, generatedAt: new Date().toISOString() };
     return { campaign: next, mode: 'deterministic', fallbackUsed: Boolean(reason), fallbackReason: reason };
   };
 
   if (!provider) return fallback(null);
-  if (provider.external && campaign.privacyResult !== 'PASS') return fallback('privacy_not_pass');
+  if (provider.external && working.privacyResult !== 'PASS') return fallback('privacy_not_pass');
 
-  const allowedClaims = allowedStoryClaims(campaign.storyBrief);
+  const allowedClaims = allowedStoryClaims(working.storyBrief);
   try {
     const generated = await provider.generate({
-      storyBrief: structuredClone(campaign.storyBrief),
+      storyBrief: structuredClone(working.storyBrief),
       allowedClaims: structuredClone(allowedClaims),
       formats: { x: 'thread', linkedin: 'professional-narrative' }
     });
-    const validation = validateGeneratedEditorial(generated, campaign.storyBrief);
+    const validation = validateGeneratedEditorial(generated, working.storyBrief);
     if (!validation.valid) return fallback('provider_output_failed_validation');
 
-    const next = applyEditorial(campaign, generated);
+    const next = applyEditorial(working, generated);
     next.draftGeneration = {
       mode: 'provider',
       provider: provider.name || 'custom',
