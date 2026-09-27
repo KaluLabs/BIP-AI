@@ -78,12 +78,13 @@ function shouldAttempt(state, now, force) {
 
 function successHealth(scan, stats, now) {
   const warning = scan.meta?.warning || (scan.meta?.historyRewritten ? 'history_rewritten' : null);
+  const nextPollMs = Number(scan.meta?.nextPollMs || 0);
   return {
     ...emptyHealth(),
     status: warning ? 'healthy_with_warning' : 'healthy',
     lastAttemptAt: iso(now),
     lastSuccessAt: iso(now),
-    nextAttemptAt: null,
+    nextAttemptAt: nextPollMs > 0 ? new Date(millis(now) + nextPollMs).toISOString() : null,
     consecutiveFailures: 0,
     lastError: null,
     lastScan: {
@@ -100,7 +101,8 @@ function successHealth(scan, stats, now) {
 
 function failureHealth(previous, failure, now, retryBaseMs, retryMaxMs) {
   const failures = Number(previous?.consecutiveFailures || 0) + 1;
-  const delay = backoffMs(failures, retryBaseMs, retryMaxMs);
+  const requested = Number(failure?.retryAfterMs || 0);
+  const delay = Math.min(retryMaxMs, Math.max(backoffMs(failures, retryBaseMs, retryMaxMs), requested));
   return {
     ...emptyHealth(),
     ...previous,
