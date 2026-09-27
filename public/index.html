@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>BIP-AI Control Room</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">BUILDING IN PUBLIC AI</p>
+        <h1>Control Room</h1>
+      </div>
+      <div class="topbar-actions">
+        <span id="health" class="pill muted">Checking…</span>
+        <button id="refresh" class="button secondary">Refresh</button>
+      </div>
+    </header>
+
+    <main>
+      <section id="notice" class="notice hidden"></section>
+      <section class="metrics" id="metrics"></section>
+
+      <section class="grid two-col">
+        <article class="panel">
+          <div class="panel-head"><div><p class="eyebrow">CAPTURE</p><h2>Projects</h2></div></div>
+          <form id="project-form" class="project-form">
+            <input name="id" placeholder="project-id" required />
+            <input name="path" placeholder="Local repository path" required />
+            <button class="button" type="submit">Add project</button>
+          </form>
+          <div id="projects" class="stack"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head"><div><p class="eyebrow">SIGNALS</p><h2>Event timeline</h2></div><span id="event-count" class="pill muted"></span></div>
+          <div id="events" class="timeline"></div>
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><div><p class="eyebrow">CALENDAR</p><h2>Content activity</h2></div><span class="pill muted">campaign creation dates</span></div>
+        <div id="calendar" class="calendar"></div>
+      </section>
+
+      <section class="grid campaign-grid">
+        <article class="panel campaign-list-panel">
+          <div class="panel-head"><div><p class="eyebrow">EDITORIAL</p><h2>Campaigns</h2></div><span id="campaign-count" class="pill muted"></span></div>
+          <div id="campaigns" class="campaign-list"></div>
+        </article>
+
+        <article class="panel detail-panel">
+          <div id="campaign-detail" class="empty-state">
+            <div class="empty-icon">↗</div>
+            <h3>Select a campaign</h3>
+            <p>Inspect drafts, provenance, versions, approvals, and PAG handoff state.</p>
+          </div>
+        </article>
+      </section>
+    </main>
+  </div>
+  <script src="/app.js" defer></script>
+</body>
+</html>
