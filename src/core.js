@@ -126,7 +126,8 @@ export function evaluatePrivacy(event) {
   return findings.length ? { result: 'REVIEW', findings } : { result: 'PASS', findings: [] };
 }
 
-export function buildStoryBrief(event) {
+export function buildStoryBrief(event, narrativeContext = []) {
+  const context = Array.isArray(narrativeContext) ? narrativeContext.map((item) => structuredClone(item)) : [];
   return {
     id: randomUUID(),
     project: { id: event.projectId },
@@ -143,12 +144,14 @@ export function buildStoryBrief(event) {
     nextStep: event.nextStep,
     assets: event.assets,
     evidence: event.evidence,
+    narrativeContext: context,
     needsUserInput: event.outcomes.length === 0 || !event.nextStep,
     themes: [
       { name: 'What changed', items: [{ text: event.details ?? event.summary, source: 'event.details' }] },
       { name: 'Implementation', items: event.implementation.map((text, index) => ({ text, source: `event.implementation[${index}]` })) },
       { name: 'Decisions', items: event.decisions.map((text, index) => ({ text, source: `event.decisions[${index}]` })) },
-      { name: 'Lessons', items: event.lessons.map((text, index) => ({ text, source: `event.lessons[${index}]` })) }
+      { name: 'Lessons', items: event.lessons.map((text, index) => ({ text, source: `event.lessons[${index}]` })) },
+      { name: 'Project context', items: context.map((item, index) => ({ text: item.text, source: `narrativeContext[${index}]` })) }
     ].filter((theme) => theme.items.length)
   };
 }
@@ -162,7 +165,9 @@ export function renderDrafts(storyBrief) {
   ];
 
   const xPosts = xClaims.map((claim) => claim.text);
+  const context = Array.isArray(storyBrief.narrativeContext) ? storyBrief.narrativeContext : [];
   const paragraphs = [
+    context[0] ? `Context: ${context[0].text}` : null,
     storyBrief.whatChanged,
     storyBrief.implementation.length ? `Implementation: ${storyBrief.implementation.join('; ')}.` : null,
     storyBrief.decisions.length ? `Decision: ${storyBrief.decisions.join('; ')}.` : null,
@@ -171,6 +176,7 @@ export function renderDrafts(storyBrief) {
   ].filter(Boolean);
 
   const linkedinClaims = [
+    ...(context[0] ? [{ text: context[0].text, source: 'storyBrief.narrativeContext[0]' }] : []),
     { text: storyBrief.whatChanged, source: 'storyBrief.whatChanged' },
     ...storyBrief.implementation.map((text, i) => ({ text, source: `storyBrief.implementation[${i}]` })),
     ...storyBrief.decisions.map((text, i) => ({ text, source: `storyBrief.decisions[${i}]` })),
@@ -196,8 +202,8 @@ export function campaignContentHash(campaign) {
   });
 }
 
-export function createCampaign(event, evaluation, privacy) {
-  const storyBrief = buildStoryBrief(event);
+export function createCampaign(event, evaluation, privacy, narrativeContext = []) {
+  const storyBrief = buildStoryBrief(event, narrativeContext);
   const drafts = renderDrafts(storyBrief);
   const now = new Date().toISOString();
   const editorialStatus = privacy.result === 'PASS' ? 'draft_ready' : 'needs_review';
