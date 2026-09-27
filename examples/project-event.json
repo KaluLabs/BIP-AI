@@ -1,0 +1,23 @@
+{
+  "projectId": "bip-ai",
+  "type": "feature",
+  "summary": "BIP-AI standalone core initialized",
+  "details": "Moved the building-in-public workflow into its own repository with an evidence-first event pipeline.",
+  "userVisible": true,
+  "importance": "high",
+  "implementation": [
+    "Added ProjectEvent normalization and deduplication",
+    "Added storyworthiness and privacy gates",
+    "Added local SQLite state",
+    "Added deterministic X and LinkedIn draft generation"
+  ],
+  "decisions": [
+    "Publishing remains approval-gated through PAG rather than being owned by BIP-AI"
+  ],
+  "lessons": [
+    "Useful build-in-public content needs structured project context, not just commit titles"
+  ],
+  "nextStep": "Add Git and filesystem capture adapters",
+  "privacy": "PASS",
+  "occurredAt": "2026-09-27T00:00:00.000Z"
+}

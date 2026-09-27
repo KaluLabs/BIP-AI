@@ -1,0 +1,62 @@
+name: Bug report
+description: Report reproducible incorrect behavior in BIP-AI
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include secrets, tokens, WhatsApp session material, private project data, or vulnerability details here. Use SECURITY.md for security-sensitive reports.
+  - type: input
+    id: version
+    attributes:
+      label: BIP-AI version or commit
+      placeholder: v0.x.y or commit SHA
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Core event pipeline
+        - Capture adapters
+        - Editorial/versioning
+        - Drafting provider
+        - PAG handoff
+        - Control Room/API
+        - External/WhatsApp adapter
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      description: Redact all credentials, account identifiers, and private data.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: OS, Node.js version, relevant optional integrations
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed secrets, tokens, session material, private identifiers, and sensitive security details.
+          required: true

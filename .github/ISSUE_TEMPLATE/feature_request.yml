@@ -1,0 +1,46 @@
+name: Feature request
+description: Propose a scoped improvement to BIP-AI
+title: "[Feature]: "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What problem should BIP-AI solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+    validations:
+      required: true
+  - type: dropdown
+    id: boundary
+    attributes:
+      label: Does this affect a trust boundary?
+      options:
+        - "No"
+        - Privacy / sensitive project data
+        - Credentials / secrets
+        - Approval / content hash
+        - External AI provider
+        - PAG / publishing
+        - WhatsApp or another external transport
+        - Control Room / network exposure
+        - Unsure
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Suggested acceptance criteria
+  - type: checkboxes
+    id: principles
+    attributes:
+      label: Project principles
+      options:
+        - label: This proposal does not require BIP-AI core to own social-account credentials.
+          required: true
+        - label: This proposal does not silently bypass human approval or PAG.
+          required: true
