@@ -1,6 +1,6 @@
 # Automated local capture
 
-BIP-AI can continuously scan registered local Git projects and feed new commits through the normal ProjectEvent pipeline.
+BIP-AI can continuously scan registered local Git projects and optional GitHub activity sources, feeding normalized evidence through the normal ProjectEvent pipeline. See [GitHub activity capture](./GITHUB-CAPTURE.md) for GitHub-specific configuration and privacy behavior.
 
 This is a **capture-only** subsystem. It does not approve content, call PAG, or publish anything.
 
@@ -22,7 +22,7 @@ node ./src/cli.js serve
 node ./src/cli.js capture start
 ```
 
-The scheduler performs one immediate scan, then scans again on the configured polling interval.
+The scheduler performs one immediate cycle, then runs again on the configured polling interval. Each source may impose a slower healthy cadence; GitHub defaults to five minutes while local Git follows the main scheduler cadence.
 
 A one-shot operator scan is also available:
 
