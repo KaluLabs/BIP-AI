@@ -33,7 +33,7 @@ function emptyHealth() {
   };
 }
 
-function safeError(error, project) {
+function safeGitError(error, project) {
   const message = String(error?.message || '');
   if (!existsSync(project.path)) {
     return { code: 'project_path_missing', summary: 'configured project path does not exist' };
@@ -50,16 +50,20 @@ function safeError(error, project) {
   return { code: 'git_scan_failed', summary: 'Git capture scan failed' };
 }
 
+function genericSourceError() {
+  return { code: 'capture_failed', summary: 'capture source failed' };
+}
+
 function backoffMs(failures, baseMs, maxMs) {
   const exponent = Math.max(0, Math.min(16, failures - 1));
   return Math.min(maxMs, baseMs * (2 ** exponent));
 }
 
-function stateFor(store, project) {
-  return store.getCaptureState(sourceKeyFor(project.id)) || {
-    sourceKey: sourceKeyFor(project.id),
-    projectId: project.id,
-    sourceType: 'git',
+function stateFor(store, { sourceKey, projectId, sourceType }) {
+  return store.getCaptureState(sourceKey) || {
+    sourceKey,
+    projectId,
+    sourceType,
     cursor: null,
     health: emptyHealth(),
     updatedAt: null
@@ -72,10 +76,11 @@ function shouldAttempt(state, now, force) {
   return !next || millis(next) <= millis(now);
 }
 
-function successHealth(previous, scan, stats, now) {
+function successHealth(scan, stats, now) {
+  const warning = scan.meta?.warning || (scan.meta?.historyRewritten ? 'history_rewritten' : null);
   return {
     ...emptyHealth(),
-    status: scan.meta?.historyRewritten ? 'healthy_with_warning' : 'healthy',
+    status: warning ? 'healthy_with_warning' : 'healthy',
     lastAttemptAt: iso(now),
     lastSuccessAt: iso(now),
     nextAttemptAt: null,
@@ -87,6 +92,7 @@ function successHealth(previous, scan, stats, now) {
       duplicates: stats.duplicates,
       campaignsCreated: stats.campaignsCreated,
       remaining: Number(scan.meta?.remaining || 0),
+      warning,
       historyRewritten: Boolean(scan.meta?.historyRewritten)
     }
   };
@@ -109,11 +115,18 @@ function failureHealth(previous, failure, now, retryBaseMs, retryMaxMs) {
 }
 
 export function captureStatus(store, projects) {
-  const stored = new Map(store.listCaptureStates().map((item) => [item.sourceKey, item]));
-  return projects.list().map((project) => {
-    const key = sourceKeyFor(project.id);
-    const value = stored.get(key);
-    return {
+  const projectList = projects.list();
+  const projectById = new Map(projectList.map((project) => [project.id, project]));
+  const stored = store.listCaptureStates();
+  const storedByKey = new Map(stored.map((item) => [item.sourceKey, item]));
+  const result = [];
+  const seen = new Set();
+
+  for (const project of projectList) {
+    const key = sourceKeyFor(project.id, 'git');
+    const value = storedByKey.get(key);
+    seen.add(key);
+    result.push({
       sourceKey: key,
       sourceType: 'git',
       projectId: project.id,
@@ -122,8 +135,124 @@ export function captureStatus(store, projects) {
       cursor: value?.cursor || null,
       health: value?.health || emptyHealth(),
       updatedAt: value?.updatedAt || null
+    });
+  }
+
+  for (const value of stored) {
+    if (seen.has(value.sourceKey)) continue;
+    const project = projectById.get(value.projectId);
+    if (!project) continue;
+    result.push({
+      sourceKey: value.sourceKey,
+      sourceType: value.sourceType,
+      projectId: value.projectId,
+      projectName: project.name || project.id,
+      path: project.path,
+      cursor: value.cursor || null,
+      health: value.health || emptyHealth(),
+      updatedAt: value.updatedAt || null
+    });
+  }
+
+  return result.sort((a, b) =>
+    a.projectId.localeCompare(b.projectId) ||
+    a.sourceType.localeCompare(b.sourceType) ||
+    a.sourceKey.localeCompare(b.sourceKey)
+  );
+}
+
+export async function runCaptureSource({
+  store,
+  app,
+  project,
+  sourceKey,
+  sourceType,
+  scan,
+  classifyError = genericSourceError,
+  now = new Date(),
+  force = false,
+  batchSize = DEFAULT_CAPTURE_BATCH_SIZE,
+  retryBaseMs = DEFAULT_CAPTURE_RETRY_BASE_MS,
+  retryMaxMs = DEFAULT_CAPTURE_RETRY_MAX_MS
+} = {}) {
+  if (!store || !app || !project || !sourceKey || !sourceType || typeof scan !== 'function') {
+    throw new TypeError('store, app, project, sourceKey, sourceType, and scan are required');
+  }
+
+  const current = stateFor(store, { sourceKey, projectId: project.id, sourceType });
+  if (!shouldAttempt(current, now, force)) {
+    return {
+      projectId: project.id,
+      sourceKey: current.sourceKey,
+      sourceType,
+      attempted: false,
+      skipped: 'backoff',
+      cursor: current.cursor,
+      health: current.health
     };
-  });
+  }
+
+  try {
+    const scanResult = await scan({
+      project,
+      cursor: current.cursor,
+      limit: batchSize
+    });
+    if (!scanResult || !Array.isArray(scanResult.events) || !Object.prototype.hasOwnProperty.call(scanResult, 'cursor')) {
+      throw new TypeError('capture scanner must return { events, cursor, meta? }');
+    }
+
+    const stats = { accepted: 0, duplicates: 0, campaignsCreated: 0 };
+    for (const event of scanResult.events) {
+      const result = app.ingest(event);
+      if (result.duplicate) stats.duplicates += 1;
+      else if (result.accepted) stats.accepted += 1;
+      if (result.campaign) stats.campaignsCreated += 1;
+    }
+
+    const health = successHealth(scanResult, stats, now);
+    const saved = store.saveCaptureState({
+      sourceKey: current.sourceKey,
+      projectId: project.id,
+      sourceType,
+      cursor: scanResult.cursor,
+      health,
+      updatedAt: iso(now)
+    });
+
+    return {
+      projectId: project.id,
+      sourceKey: current.sourceKey,
+      sourceType,
+      attempted: true,
+      ok: true,
+      cursor: saved.cursor,
+      health: saved.health,
+      scan: health.lastScan
+    };
+  } catch (error) {
+    const failure = classifyError(error, project);
+    const health = failureHealth(current.health, failure, now, retryBaseMs, retryMaxMs);
+    const saved = store.saveCaptureState({
+      sourceKey: current.sourceKey,
+      projectId: project.id,
+      sourceType,
+      cursor: current.cursor,
+      health,
+      updatedAt: iso(now)
+    });
+
+    return {
+      projectId: project.id,
+      sourceKey: current.sourceKey,
+      sourceType,
+      attempted: true,
+      ok: false,
+      cursor: saved.cursor,
+      health: saved.health,
+      error: failure
+    };
+  }
 }
 
 export async function runGitCaptureProject({
@@ -137,77 +266,25 @@ export async function runGitCaptureProject({
   retryBaseMs = DEFAULT_CAPTURE_RETRY_BASE_MS,
   retryMaxMs = DEFAULT_CAPTURE_RETRY_MAX_MS
 } = {}) {
-  if (!store || !app || !project) throw new TypeError('store, app, and project are required');
-
-  const current = stateFor(store, project);
-  if (!shouldAttempt(current, now, force)) {
-    return {
-      projectId: project.id,
-      sourceKey: current.sourceKey,
-      attempted: false,
-      skipped: 'backoff',
-      cursor: current.cursor,
-      health: current.health
-    };
-  }
-
-  try {
-    const scanResult = await scan({
+  return runCaptureSource({
+    store,
+    app,
+    project,
+    sourceKey: sourceKeyFor(project.id, 'git'),
+    sourceType: 'git',
+    scan: ({ cursor, limit }) => scan({
       repoPath: project.path,
       projectId: project.id,
-      cursor: current.cursor,
-      limit: batchSize
-    });
-
-    const stats = { accepted: 0, duplicates: 0, campaignsCreated: 0 };
-    for (const event of scanResult.events) {
-      const result = app.ingest(event);
-      if (result.duplicate) stats.duplicates += 1;
-      else if (result.accepted) stats.accepted += 1;
-      if (result.campaign) stats.campaignsCreated += 1;
-    }
-
-    const health = successHealth(current.health, scanResult, stats, now);
-    const saved = store.saveCaptureState({
-      sourceKey: current.sourceKey,
-      projectId: project.id,
-      sourceType: 'git',
-      cursor: scanResult.cursor,
-      health,
-      updatedAt: iso(now)
-    });
-
-    return {
-      projectId: project.id,
-      sourceKey: current.sourceKey,
-      attempted: true,
-      ok: true,
-      cursor: saved.cursor,
-      health: saved.health,
-      scan: health.lastScan
-    };
-  } catch (error) {
-    const failure = safeError(error, project);
-    const health = failureHealth(current.health, failure, now, retryBaseMs, retryMaxMs);
-    const saved = store.saveCaptureState({
-      sourceKey: current.sourceKey,
-      projectId: project.id,
-      sourceType: 'git',
-      cursor: current.cursor,
-      health,
-      updatedAt: iso(now)
-    });
-
-    return {
-      projectId: project.id,
-      sourceKey: current.sourceKey,
-      attempted: true,
-      ok: false,
-      cursor: saved.cursor,
-      health: saved.health,
-      error: failure
-    };
-  }
+      cursor,
+      limit
+    }),
+    classifyError: safeGitError,
+    now,
+    force,
+    batchSize,
+    retryBaseMs,
+    retryMaxMs
+  });
 }
 
 export async function runCaptureOnce({
