@@ -206,7 +206,7 @@ export async function runCaptureSource({
       sourceKey: current.sourceKey,
       sourceType,
       attempted: false,
-      skipped: 'backoff',
+      skipped: current.health?.status === 'degraded' ? 'backoff' : 'cadence',
       cursor: current.cursor,
       health: current.health
     };
