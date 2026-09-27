@@ -6,6 +6,7 @@ import { approveCampaign, applyEditorial } from './editorial.js';
 import { evaluatePrivacy, evaluateStoryworthiness } from './core.js';
 import { requestPagHandoff, reconcilePagHandoff } from './handoff.js';
 import { regenerateCampaignDrafts } from './drafting.js';
+import { ingestExternalUpdate } from './adapters/external-update.js';
 
 const DEFAULT_PUBLIC_DIR = fileURLToPath(new URL('../public', import.meta.url));
 const MIME = { '.html':'text/html; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.css':'text/css; charset=utf-8', '.svg':'image/svg+xml' };
@@ -35,7 +36,7 @@ function campaignOr404(store, id) { const value=store.getCampaign(id); if(!value
 function projectOr404(projects, id) { const value=projects.get(id); if(!value) throw httpError(404, 'project not found'); return value; }
 function enrichEvent(event, storyThreshold) { return { ...event, evaluation:evaluateStoryworthiness(event, storyThreshold), privacy:evaluatePrivacy(event) }; }
 
-export function createBipServer({ store, projects, pagFactory = null, draftProviderFactory = null, connections = {}, storyThreshold = 3, publicDir = DEFAULT_PUBLIC_DIR, safeConfig = {} } = {}) {
+export function createBipServer({ store, projects, app = null, pagFactory = null, draftProviderFactory = null, connections = {}, storyThreshold = 3, publicDir = DEFAULT_PUBLIC_DIR, safeConfig = {} } = {}) {
   if (!store || !projects) throw new TypeError('store and projects are required');
 
   return http.createServer(async (req, res) => {
@@ -50,6 +51,10 @@ export function createBipServer({ store, projects, pagFactory = null, draftProvi
       if (req.method === 'GET' && path === '/api/health') return json(res, 200, { ok:true, service:'bip-ai', version:'0.6-dev' });
       if (req.method === 'GET' && path === '/api/config') return json(res, 200, { ...safeConfig });
       if (req.method === 'GET' && path === '/api/projects') return json(res, 200, { projects:projects.list() });
+      if (req.method === 'POST' && path === '/api/adapters/external/events') {
+        requireCsrf(req); if(!app) throw httpError(503,'external event ingestion is not configured');
+        const body=await bodyJson(req); return json(res,201,ingestExternalUpdate(app,body));
+      }
       if (req.method === 'POST' && path === '/api/projects') {
         requireCsrf(req); const body=await bodyJson(req); return json(res, 201, { project:projects.add(body) });
       }
