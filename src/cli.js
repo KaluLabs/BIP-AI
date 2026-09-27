@@ -1,6 +1,5 @@
 #!/usr/bin/env node
-import { readFileSync, writeFileSync } from 'node:fs';
-import { BipStore } from './store.js';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { BipAI } from './pipeline.js';
 import { FileInbox } from './capture/inbox.js';
 import { scanGitActivity } from './capture/git.js';
@@ -15,9 +14,10 @@ import { OpenAICompatibleDraftProvider, regenerateCampaignDrafts } from './draft
 import { createBipServer, listenBipServer } from './http-server.js';
 import { ingestExternalUpdate } from './adapters/external-update.js';
 import { exportApprovedStatusPackage } from './status-export.js';
+import { doctor, initializeSetup, nodeVersionStatus, promptSetupProject } from './setup.js';
 
 function usage() {
-  console.log(`BIP-AI v0.2-dev\n\nCommands:\n  event emit <event.json>\n  events list [projectId]\n  campaigns list [projectId]\n  campaigns show <campaignId>\n  campaigns versions <campaignId>\n  campaigns approve <campaignId>\n  editorial export <campaignId> [output.json]\n  editorial import <campaignId> <editorial.json>\n  inbox emit <event.json>\n  inbox process\n  git scan <projectId> <repoPath> [since]\n  projects add <projectId> <repoPath>\n  projects list\n  projects github <projectId> <owner/repo> [public|private]\n  projects github-clear <projectId>\n  capture run [projectId]\n  capture status\n  capture start\n  request-x <campaignId>\n  request-linkedin <campaignId>\n  handoff status <x|linkedin> <campaignId>\n  publishing history <campaignId> [x|linkedin]\n  publishing retry <x|linkedin> <campaignId> <attemptId>\n  draft regenerate <campaignId>\n  external emit <update.json>\n  status export <campaignId> [output.json]\n  serve\n`);
+  console.log(`BIP-AI v0.2-dev\n\nCommands:\n  setup [projectId repoPath]\n  doctor\n  event emit <event.json>\n  events list [projectId]\n  campaigns list [projectId]\n  campaigns show <campaignId>\n  campaigns versions <campaignId>\n  campaigns approve <campaignId>\n  editorial export <campaignId> [output.json]\n  editorial import <campaignId> <editorial.json>\n  inbox emit <event.json>\n  inbox process\n  git scan <projectId> <repoPath> [since]\n  projects add <projectId> <repoPath>\n  projects list\n  projects github <projectId> <owner/repo> [public|private]\n  projects github-clear <projectId>\n  capture run [projectId]\n  capture status\n  capture start\n  request-x <campaignId>\n  request-linkedin <campaignId>\n  handoff status <x|linkedin> <campaignId>\n  publishing history <campaignId> [x|linkedin]\n  publishing retry <x|linkedin> <campaignId> <attemptId>\n  draft regenerate <campaignId>\n  external emit <update.json>\n  status export <campaignId> [output.json]\n  serve\n`);
 }
 
 function print(value) { console.log(JSON.stringify(value, null, 2)); }
@@ -28,11 +28,54 @@ function requireCampaign(store, id) {
   return campaign;
 }
 
+if (typeof process.loadEnvFile === 'function' && existsSync('.env')) {
+  try {
+    process.loadEnvFile('.env');
+  } catch (error) {
+    console.error(`Unable to load .env: ${error.message}`);
+    process.exitCode = 1;
+  }
+}
+
 const [command, subcommand, arg1, arg2, arg3] = process.argv.slice(2);
 if (!command) { usage(); process.exit(0); }
 
-const store = new BipStore(process.env.BIP_AI_DB || '.bipai/bip-ai.sqlite');
-try {
+let handledEarly = false;
+if (command === 'setup') {
+  handledEarly = true;
+  try {
+    let projectId = subcommand || null;
+    let repoPath = arg1 || null;
+    if ((!projectId || !repoPath) && process.stdin.isTTY && process.stdout.isTTY) {
+      ({ projectId, repoPath } = await promptSetupProject());
+    } else if (Boolean(projectId) !== Boolean(repoPath)) {
+      throw new Error('setup requires both <projectId> and <repoPath>, or neither in an interactive terminal.');
+    }
+
+    const setup = await initializeSetup({ projectId, repoPath });
+    const diagnostics = await doctor();
+    print({ setup, diagnostics });
+    if (!diagnostics.ok) process.exitCode = 1;
+  } catch (error) {
+    console.error(error.message);
+    process.exitCode = 1;
+  }
+} else if (command === 'doctor') {
+  handledEarly = true;
+  const diagnostics = await doctor();
+  print(diagnostics);
+  if (!diagnostics.ok) process.exitCode = 1;
+}
+
+if (!handledEarly) {
+  const node = nodeVersionStatus();
+  if (!node.ok) {
+    console.error(node.message);
+    process.exitCode = 1;
+  } else {
+    const { BipStore } = await import('./store.js');
+    const store = new BipStore(process.env.BIP_AI_DB || '.bipai/bip-ai.sqlite');
+    try {
   const app = new BipAI({ store, storyThreshold: Number(process.env.BIP_AI_STORY_THRESHOLD || 3) });
   const inbox = new FileInbox(process.env.BIP_AI_EVENT_DIR || '.bipai/events');
   const projects = new ProjectRegistry(process.env.BIP_AI_PROJECTS || '.bipai/projects.json');
@@ -205,9 +248,11 @@ try {
     usage();
     process.exitCode = 1;
   }
-} catch (error) {
-  console.error(error.message);
-  process.exitCode = 1;
-} finally {
-  store.close();
+    } catch (error) {
+      console.error(error.message);
+      process.exitCode = 1;
+    } finally {
+      store.close();
+    }
+  }
 }
