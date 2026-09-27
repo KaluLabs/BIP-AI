@@ -6,6 +6,13 @@ The project follows Semantic Versioning once releases are tagged. During the `0.
 
 ## Unreleased
 
+### Added
+
+- Per-platform editorial scheduling for X and LinkedIn with explicit RFC3339 timestamps and IANA timezone labels.
+- Persistent `drafted / approved / planned / handed_off / published / failed` lifecycle state.
+- Deterministic due/overdue schedule query and approval-gated scheduled PAG execution.
+- Control Room editorial calendar with schedule, reschedule, and clear controls.
+
 ## 0.1.0 - 2026-09-27
 
 ### Added
