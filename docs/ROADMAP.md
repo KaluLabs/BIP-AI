@@ -122,7 +122,7 @@ BIP-012 should reuse BIP-011 scheduling/cursor primitives where practical.
   - failed/denied handoffs
   - actionable queue with provenance context
 
-- [ ] **[BIP-014 — Publishing history and safe retries](https://github.com/victorkay97/BIP-AI/issues/29)**
+- [x] **[BIP-014 — Publishing history and safe retries](https://github.com/victorkay97/BIP-AI/issues/29)**
   - append-only handoff/publishing journal
   - platform-independent outcome tracking
   - PAG receipt reconciliation
