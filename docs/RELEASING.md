@@ -17,19 +17,36 @@ A release candidate should have:
 5. documentation matching the shipped CLI/API behavior;
 6. no committed secrets or local state;
 7. reviewed migrations or compatibility notes for persistent state changes;
-8. verified approval/content-hash and PAG trust boundaries.
+8. verified approval/content-hash and PAG trust boundaries;
+9. `npm run verify:distribution` passing;
+10. reproducible source archive/checksum generated from the release commit.
 
 ## Release procedure
 
 1. Update `CHANGELOG.md` from **Unreleased** into the target version/date.
 2. Update `package.json` version.
 3. Run `npm test`.
-4. Review the diff for secrets and generated local state.
-5. Merge through the protected default branch once repository protections are available.
-6. Create an annotated tag such as `v0.1.0`.
-7. Create GitHub release notes from the changelog plus migration/security notes.
-8. Keep npm/package-registry publication separate from the GitHub release unless package publication is explicitly adopted.
+4. Run `npm run verify:distribution`.
+5. Build the checksummed source artifact with `BIP_AI_RELEASE_VERSION=<version> npm run dist`.
+6. Re-run the artifact build from the same commit/version and confirm the SHA-256 digest is unchanged.
+7. Review the diff for secrets and generated local state. `dist/` is generated and must not be committed.
+8. Merge through the protected default branch.
+9. Create an annotated tag such as `v0.2.0` at the verified release commit.
+10. Rebuild `dist/` from the tagged commit and verify `SHA256SUMS.txt`.
+11. Create the GitHub release using `docs/releases/v<version>.md` plus migration/security notes.
+12. Attach `bip-ai-v<version>.tar.gz`, `SHA256SUMS.txt`, and `release-manifest.json` to the GitHub release.
+13. If publishing a Docker image separately, build it from the same tagged commit with `BIP_AI_VERSION` and `BIP_AI_REVISION` set to the release identity.
+14. Keep npm/package-registry publication disabled unless it is explicitly adopted through a separate decision.
 
 ## Rollback
 
 Do not rewrite released tags. If a release is defective, fix forward with a new patch release or mark the release as affected and document the safe version.
+
+
+## Distribution boundary
+
+The commit-derived source archive is the reproducible release artifact of record. Docker is a supported packaged runtime, but image rebuilds can depend on external base-image and operating-system package repositories.
+
+The package must remain `private: true` until npm/package-registry publication is explicitly approved.
+
+See [Distribution and installation](./DISTRIBUTION.md) and [ADR 0004](./adr/0004-distribution.md).
