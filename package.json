@@ -23,6 +23,8 @@
     "serve": "node ./src/cli.js serve",
     "test": "node --test",
     "setup": "node ./src/cli.js setup",
-    "doctor": "node ./src/cli.js doctor"
+    "doctor": "node ./src/cli.js doctor",
+    "dist": "node ./scripts/build-release-artifacts.mjs",
+    "verify:distribution": "bash ./scripts/verify-distribution.sh"
   }
 }
