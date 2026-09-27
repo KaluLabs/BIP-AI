@@ -60,7 +60,9 @@ export function createBipServer({ store, projects, app = null, pagFactory = null
       if (req.method === 'POST' && path === '/api/capture/run') {
         requireCsrf(req); if(!captureScheduler) throw httpError(503,'capture scheduler is not configured');
         const body=await bodyJson(req);
-        return json(res,200,await captureScheduler.runOnce({projectId:body.projectId||null,force:true}));
+        const result=await captureScheduler.runOnce({projectId:body.projectId||null,force:true});
+        if(result?.skipped==='cycle_already_running') throw httpError(409,'capture cycle already running');
+        return json(res,200,result);
       }
       if (req.method === 'POST' && path === '/api/adapters/external/events') {
         requireCsrf(req); if(!app) throw httpError(503,'external event ingestion is not configured');
