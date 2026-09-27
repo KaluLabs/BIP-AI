@@ -1,6 +1,6 @@
 # Public release checklist
 
-BIP-AI should not be switched to a public repository until every blocking item below is resolved.
+BIP-AI should remain private until the pre-public checks are complete. Some GitHub security/protection features only become available on the current account configuration after the repository is made public, so the visibility change and those settings must be treated as one release sequence.
 
 ## Legal
 
@@ -19,12 +19,23 @@ Current inventory: BIP-AI has no third-party npm runtime/development dependencie
 - [x] Add issue and pull-request templates.
 - [x] Add CODEOWNERS.
 - [x] Add dependency/update policy and Dependabot configuration.
-- [ ] Enable GitHub private vulnerability reporting before inviting public security reports.
-- [ ] Enable default-branch protection/rules requiring CI before merge.
+- [ ] Change repository visibility from private to public.
+- [ ] Immediately after visibility changes, enable GitHub private vulnerability reporting.
+- [ ] Immediately after visibility changes, enable a default-branch ruleset/protection for `main` requiring pull requests and the green CI check.
 
-### Current branch-protection blocker
+### Visibility-dependent settings
 
-GitHub currently returns: `Upgrade to GitHub Pro or make this repository public to enable this feature.` when repository rulesets are queried for this private repository. Protection must therefore be enabled after the repository becomes public or after upgrading the account plan.
+GitHub private vulnerability reporting is available for **public repositories**. On the current private repository, it cannot be enabled in advance.
+
+GitHub rulesets/protected branches are available for public repositories on GitHub Free; private repositories require GitHub Pro, Team, or Enterprise. GitHub currently returns `Upgrade to GitHub Pro or make this repository public to enable this feature.` for BIP-AI.
+
+Therefore the safe order is:
+
+1. finish all pre-public code/history checks;
+2. make the repository public;
+3. immediately enable private vulnerability reporting;
+4. immediately protect `main` and require the CI check;
+5. verify public-facing README/security/issue links.
 
 ## CI
 
@@ -33,7 +44,7 @@ GitHub currently returns: `Upgrade to GitHub Pro or make this repository public 
 - [x] Trusted BIP-AI self-hosted runner is configured and executing repository jobs.
 - [x] Aggregate PR verification passed on the self-hosted runner.
 - [x] Post-merge `main` push verification passed on the self-hosted runner.
-- [ ] Require the green CI check in default-branch protection once repository protections are available.
+- [ ] Require the green CI check in default-branch protection after the repository becomes public.
 
 ### Hosted-runner note
 
@@ -46,19 +57,28 @@ The active self-hosted workflow verifies:
 3. npm availability;
 4. the full `npm test` suite.
 
-## Documentation and release
+## Documentation and first release
 
 - [x] Architecture/trust-boundary ADRs exist.
 - [x] Release/versioning policy exists.
 - [x] Changelog exists.
 - [x] Reproducible contributor setup is documented.
-- [ ] Update the changelog with the first release version/date.
-- [ ] Set package version for the first release.
-- [ ] Create the first signed/annotated release tag and GitHub release notes.
-- [ ] Decide separately whether BIP-AI will be published to a package registry.
+- [x] Prepare the changelog for version `0.1.0` dated 2026-09-27.
+- [x] Package version is `0.1.0`.
+- [x] Prepare first-release notes in `docs/releases/v0.1.0.md`.
+- [x] Decide package-registry publication: **not part of v0.1.0**; keep `private: true`.
+- [ ] Create the `v0.1.0` tag and GitHub release after the release-prep commit is on `main`.
 
-## Final exposure review
+## Exposure review
 
-- [ ] Scan the full Git history and working tree for secrets/private files.
-- [ ] Confirm no local `.bipai/`, SQLite state, `.env`, PAG tokens, AI-provider keys, or WhatsApp session material exists in Git history.
-- [ ] Confirm README links and public issue/security routes work after visibility changes.
+- [x] Scan every live branch head for sensitive filenames/local state.
+- [x] Scan all 93 commits reachable from retained branches for credential-shaped content and sensitive file additions/removals.
+- [x] Confirm current `.env.example` secret values are blank.
+- [x] Confirm `.gitignore` excludes `.env`, `.bipai/`, SQLite/WAL state, node_modules, and coverage.
+- [x] Confirm no real private keys, GitHub/OpenAI/AWS/Slack credentials, PAG tokens, session stores, or similar sensitive artifacts were found.
+- [x] Review the only secret-pattern hit: intentional fake unit-test value `super-secret-key`.
+- [ ] Verify public README/security/issue links after visibility changes.
+
+## Remaining release sequence
+
+Once this release-prep change is merged and CI is green, the only remaining actions are visibility-dependent GitHub repository settings and creation of the `v0.1.0` tag/release.
