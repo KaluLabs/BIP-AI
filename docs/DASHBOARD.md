@@ -208,3 +208,28 @@ The browser never receives `BIP_AI_GITHUB_TOKEN`. The safe config endpoint expos
 GitHub capture health appears beside local Git health as a separate source. Its checkpoint shows the repository-event cursor and attempt-aware workflow cursor. Healthy GitHub sources may display a future **next scan** time; degraded sources display **next retry**.
 
 See [GitHub activity capture](./GITHUB-CAPTURE.md) for event mappings, privacy behavior, cursor semantics, and authentication.
+
+
+## Approval inbox
+
+The Control Room includes an operational **Approval inbox** above the capture/event workspace.
+
+It inherits the global search/project/privacy/source/platform/status filters and adds a URL-backed attention-category filter.
+
+Inbox cards show:
+
+- priority and age;
+- attention category;
+- project/platform;
+- exact campaign version;
+- actionable reason;
+- blockers that prevent immediate approval;
+- originating event provenance.
+
+Approval-ready cards support exact-version single or bulk approval. The browser submits the rendered campaign version/content hash and stale actions fail closed.
+
+Privacy REVIEW cards do not expose normal approval controls. Open the campaign to record an explicit privacy PASS/BLOCK decision with a required note.
+
+PAG denied/failed cards are informational/action-routing items in BIP-013; safe retry controls arrive with BIP-014.
+
+See [Approval inbox](./APPROVAL-INBOX.md) for the full state model and API contract.
