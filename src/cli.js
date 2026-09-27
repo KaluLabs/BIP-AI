@@ -16,9 +16,10 @@ import { ingestExternalUpdate } from './adapters/external-update.js';
 import { exportApprovedStatusPackage } from './status-export.js';
 import { doctor, initializeSetup, nodeVersionStatus, promptSetupProject } from './setup.js';
 import { runtimeIdentity } from './version.js';
+import { getNarrativeMemory, narrativeContextClaims, rebuildNarrativeMemory, restoreNarrativeEntry, setNarrativeEntryControl } from './narrative-memory.js';
 
 function usage() {
-  console.log(`BIP-AI v0.2-dev\n\nCommands:\n  version\n  setup [projectId repoPath]\n  doctor\n  event emit <event.json>\n  events list [projectId]\n  campaigns list [projectId]\n  campaigns show <campaignId>\n  campaigns versions <campaignId>\n  campaigns approve <campaignId>\n  editorial export <campaignId> [output.json]\n  editorial import <campaignId> <editorial.json>\n  inbox emit <event.json>\n  inbox process\n  git scan <projectId> <repoPath> [since]\n  projects add <projectId> <repoPath>\n  projects list\n  projects github <projectId> <owner/repo> [public|private]\n  projects github-clear <projectId>\n  capture run [projectId]\n  capture status\n  capture start\n  request-x <campaignId>\n  request-linkedin <campaignId>\n  handoff status <x|linkedin> <campaignId>\n  publishing history <campaignId> [x|linkedin]\n  publishing retry <x|linkedin> <campaignId> <attemptId>\n  draft regenerate <campaignId>\n  external emit <update.json>\n  status export <campaignId> [output.json]\n  serve\n`);
+  console.log(`BIP-AI v0.2-dev\n\nCommands:\n  version\n  setup [projectId repoPath]\n  doctor\n  event emit <event.json>\n  events list [projectId]\n  campaigns list [projectId]\n  campaigns show <campaignId>\n  campaigns versions <campaignId>\n  campaigns approve <campaignId>\n  editorial export <campaignId> [output.json]\n  editorial import <campaignId> <editorial.json>\n  inbox emit <event.json>\n  inbox process\n  git scan <projectId> <repoPath> [since]\n  projects add <projectId> <repoPath>\n  projects list\n  projects github <projectId> <owner/repo> [public|private]\n  projects github-clear <projectId>\n  capture run [projectId]\n  capture status\n  capture start\n  narrative show <projectId>\n  narrative rebuild <projectId>\n  narrative archive <projectId> <entryId>\n  narrative forget <projectId> <entryId>\n  narrative restore <projectId> <entryId>\n  request-x <campaignId>\n  request-linkedin <campaignId>\n  handoff status <x|linkedin> <campaignId>\n  publishing history <campaignId> [x|linkedin]\n  publishing retry <x|linkedin> <campaignId> <attemptId>\n  draft regenerate <campaignId>\n  external emit <update.json>\n  status export <campaignId> [output.json]\n  serve\n`);
 }
 
 function print(value) { console.log(JSON.stringify(value, null, 2)); }
@@ -167,6 +168,18 @@ if (!handledEarly) {
       const stop = () => { captureScheduler.stop(); resolve(); };
       process.once('SIGINT', stop); process.once('SIGTERM', stop);
     });
+  } else if (command === 'narrative' && subcommand === 'show') {
+    if (!arg1) throw new Error('narrative show requires <projectId>');
+    print({ ...getNarrativeMemory(store, arg1), controls: store.listNarrativeControls(arg1) });
+  } else if (command === 'narrative' && subcommand === 'rebuild') {
+    if (!arg1) throw new Error('narrative rebuild requires <projectId>');
+    print({ memory: rebuildNarrativeMemory(store, arg1), controls: store.listNarrativeControls(arg1) });
+  } else if (command === 'narrative' && ['archive', 'forget'].includes(subcommand)) {
+    if (!arg1 || !arg2) throw new Error(`narrative ${subcommand} requires <projectId> <entryId>`);
+    print({ memory: setNarrativeEntryControl(store, arg1, arg2, subcommand), controls: store.listNarrativeControls(arg1) });
+  } else if (command === 'narrative' && subcommand === 'restore') {
+    if (!arg1 || !arg2) throw new Error('narrative restore requires <projectId> <entryId>');
+    print({ memory: restoreNarrativeEntry(store, arg1, arg2), controls: store.listNarrativeControls(arg1) });
   } else if (command === 'request-x') {
     const result = await requestPublishingHandoff(store, requireCampaign(store, subcommand), 'x', {
       pag: createPag(), connectionId: process.env.BIP_AI_X_CONNECTION_ID || null
@@ -206,7 +219,10 @@ if (!handledEarly) {
         : process.env.BIP_AI_LINKEDIN_CONNECTION_ID || null
     }));
   } else if (command === 'draft' && subcommand === 'regenerate') {
-    const result = await regenerateCampaignDrafts(requireCampaign(store, arg1), { provider: createDraftProvider() });
+    const campaign = requireCampaign(store, arg1);
+    const memory = getNarrativeMemory(store, campaign.projectId).memory;
+    const narrativeContext = narrativeContextClaims(memory, { excludeEventId: campaign.eventId });
+    const result = await regenerateCampaignDrafts(campaign, { provider: createDraftProvider(), narrativeContext });
     store.saveCampaignVersion(result.campaign);
     print(result);
   } else if (command === 'external' && subcommand === 'emit') {
