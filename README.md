@@ -4,7 +4,7 @@
 
 BIP-AI observes project events from Git, local/manual activity, and optional external adapters; turns them into structured story briefs; creates reviewable X and LinkedIn drafts; and delegates any external publishing action to a permissioned gateway such as [Personal Access Gateway (PAG)](https://github.com/victorkay97/Personal-Access-Gateway).
 
-The project is being prepared for public open-source release. The repository is currently private and an explicit open-source license has **not yet been selected**. See [Licensing](./docs/LICENSING.md) and the [Public release checklist](./docs/PUBLIC-RELEASE-CHECKLIST.md).
+The project is being prepared for public open-source release and is licensed under the **Apache License 2.0**. The repository remains private until the remaining public-release security/settings checks are complete. See [Licensing](./docs/LICENSING.md) and the [Public release checklist](./docs/PUBLIC-RELEASE-CHECKLIST.md).
 
 ## Principles
 
@@ -93,6 +93,10 @@ BIP-AI does not own X, LinkedIn, or WhatsApp publishing credentials and does not
 For X and LinkedIn, approved campaigns submit explicit PAG intents. PAG evaluates least-privilege grants and exact-payload approval before producing the browser handoff.
 
 For WhatsApp Status, BIP-AI can export an approved-content package for a separate Status Manager; it does not hold the WhatsApp publishing session.
+
+## License
+
+BIP-AI is licensed under the [Apache License 2.0](./LICENSE). See [NOTICE](./NOTICE) for project attribution information.
 
 ## Documentation
 
