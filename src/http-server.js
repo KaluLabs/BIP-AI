@@ -38,7 +38,7 @@ function campaignOr404(store, id) { const value=store.getCampaign(id); if(!value
 function projectOr404(projects, id) { const value=projects.get(id); if(!value) throw httpError(404, 'project not found'); return value; }
 function enrichEvent(event, storyThreshold) { return { ...event, evaluation:evaluateStoryworthiness(event, storyThreshold), privacy:evaluatePrivacy(event) }; }
 
-export function createBipServer({ store, projects, app = null, pagFactory = null, draftProviderFactory = null, connections = {}, storyThreshold = 3, publicDir = DEFAULT_PUBLIC_DIR, safeConfig = {}, schedulePollMs = 30_000 } = {}) {
+export function createBipServer({ store, projects, app = null, pagFactory = null, draftProviderFactory = null, connections = {}, storyThreshold = 3, publicDir = DEFAULT_PUBLIC_DIR, safeConfig = {}, schedulePollMs = 30_000, captureScheduler = null } = {}) {
   if (!store || !projects) throw new TypeError('store and projects are required');
 
   const server = http.createServer(async (req, res) => {
@@ -53,6 +53,15 @@ export function createBipServer({ store, projects, app = null, pagFactory = null
       if (req.method === 'GET' && path === '/api/health') return json(res, 200, { ok:true, service:'bip-ai', version:'0.2-dev' });
       if (req.method === 'GET' && path === '/api/config') return json(res, 200, { ...safeConfig });
       if (req.method === 'GET' && path === '/api/projects') return json(res, 200, { projects:projects.list() });
+      if (req.method === 'GET' && path === '/api/capture/status') {
+        if(!captureScheduler) throw httpError(503,'capture scheduler is not configured');
+        return json(res,200,captureScheduler.status());
+      }
+      if (req.method === 'POST' && path === '/api/capture/run') {
+        requireCsrf(req); if(!captureScheduler) throw httpError(503,'capture scheduler is not configured');
+        const body=await bodyJson(req);
+        return json(res,200,await captureScheduler.runOnce({projectId:body.projectId||null,force:true}));
+      }
       if (req.method === 'POST' && path === '/api/adapters/external/events') {
         requireCsrf(req); if(!app) throw httpError(503,'external event ingestion is not configured');
         const body=await bodyJson(req); return json(res,201,ingestExternalUpdate(app,body));
@@ -130,6 +139,11 @@ export function createBipServer({ store, projects, app = null, pagFactory = null
       json(res,status,{error:status>=500?'request failed':String(error.message||error)});
     }
   });
+
+  if (captureScheduler) {
+    server.once('listening', () => { captureScheduler.start(); });
+    server.once('close', () => { captureScheduler.stop(); });
+  }
 
   if (pagFactory && Number(schedulePollMs) > 0) {
     let timer = null;
