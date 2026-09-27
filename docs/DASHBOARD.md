@@ -31,6 +31,9 @@ Environment settings:
 - independent X and LinkedIn schedule/reschedule/clear controls
 - lifecycle state for each platform: `drafted`, `approved`, `planned`, `handed_off`, `published`, or `failed`
 - due/overdue schedule visibility
+- URL-backed project/search/filter/sort state
+- server-side pagination for event and campaign collections
+- deterministic event/campaign sorting with stable ID tie-breaking
 
 The dashboard may display local repository paths because it is an operator surface. It does not expose PAG actor tokens, drafting-provider API keys, or social-account credentials. `/api/config` returns only safe provider/configuration names, booleans, and non-secret scheduling settings.
 
@@ -88,3 +91,81 @@ State-changing API requests require the custom `X-BIPAI-CSRF: 1` header. The bun
 `BIP_AI_ALLOW_REMOTE=1` only permits the process to bind to a non-loopback interface. It is **not** a complete authentication or internet-exposure model.
 
 For remote use, place BIP-AI behind a trusted authenticated reverse proxy, private VPN/tunnel, or equivalent access-control layer with HTTPS. Do not expose the Control Room directly to the public internet in its current form.
+
+
+## Search, filters, and navigation
+
+The Control Room stores its navigation state in the browser URL query string. A filtered view can therefore be bookmarked, refreshed, or restored with browser Back/Forward navigation.
+
+Global filters include:
+
+- project;
+- free-text search;
+- privacy state;
+- source;
+- campaign platform;
+- campaign lifecycle/editorial status;
+- date range.
+
+Event and campaign sort/order/page state are independent, so moving through one collection does not reset the other.
+
+### Event query API
+
+`GET /api/events` accepts:
+
+- `q`
+- `projectId`
+- `privacy=PASS|REVIEW|BLOCK`
+- `source`
+- `from` / `to`
+- `sort=occurredAt|projectId|source|privacy`
+- `order=asc|desc`
+- `page`
+- `pageSize` (1–100)
+
+Event date filtering uses `occurredAt`.
+
+### Campaign query API
+
+`GET /api/campaigns` accepts:
+
+- `q`
+- `projectId`
+- `privacy=PASS|REVIEW|BLOCK`
+- `source` inherited from the originating ProjectEvent
+- `platform=x|linkedin`
+- `status`
+- `from` / `to`
+- `sort=updatedAt|createdAt|scheduledAt|projectId|privacy|status`
+- `order=asc|desc`
+- `page`
+- `pageSize` (1–100)
+
+When `sort=scheduledAt`, date filtering uses the selected platform's scheduled time (or the earliest scheduled platform when no platform is selected). When `sort=createdAt`, it uses campaign creation time. Other campaign sorts use `updatedAt` for date filtering.
+
+Platform filtering scopes platform-specific status and schedule behavior. Current campaigns produce both X and LinkedIn drafts, so choosing a platform primarily scopes lifecycle/status/schedule interpretation rather than removing drafts for the other platform.
+
+### Validation and pagination
+
+Unknown query parameters, unsupported enum values, invalid date ranges, unsupported sort keys, and invalid pagination values return HTTP 400 rather than being silently ignored.
+
+Responses contain both the collection and pagination metadata:
+
+```json
+{
+  "events": [],
+  "pagination": {
+    "page": 1,
+    "pageSize": 20,
+    "total": 0,
+    "totalPages": 0,
+    "hasPrevious": false,
+    "hasNext": false
+  },
+  "query": {}
+}
+```
+
+Campaign responses use the same `pagination` and `query` shape.
+
+Stable sorting always uses the record ID as a deterministic tie-breaker, preventing records with equal primary sort values from jumping between pages.
