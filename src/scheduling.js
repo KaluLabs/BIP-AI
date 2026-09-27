@@ -179,7 +179,8 @@ function markScheduleFailed(campaign, platform, code, { now = new Date() } = {})
 export async function executeScheduledHandoff(campaign, platform, {
   pag,
   connectionId = null,
-  now = new Date()
+  now = new Date(),
+  handoff = requestPagHandoff
 } = {}) {
   if (!campaign) throw inputError('campaign is required');
   assertPlatform(platform);
@@ -189,7 +190,7 @@ export async function executeScheduledHandoff(campaign, platform, {
 
   try {
     if (!pag) throw new TypeError('PAG client is required');
-    const result = await requestPagHandoff(campaign, platform, { pag, connectionId });
+    const result = await handoff(campaign, platform, { pag, connectionId, now });
     const next = result.campaign;
     const target = next.platform[platform];
     const handoffStatus = target.handoffStatus;
@@ -220,7 +221,8 @@ export async function executeScheduledHandoff(campaign, platform, {
 export async function runDueSchedules(store, {
   pagFactory,
   connections = {},
-  at = new Date()
+  at = new Date(),
+  handoff = null
 } = {}) {
   if (!store) throw new TypeError('store is required');
   const due = listDueSchedules(store.listCampaigns(), { at });
@@ -235,7 +237,8 @@ export async function runDueSchedules(store, {
     const result = await executeScheduledHandoff(current, item.platform, {
       pag,
       connectionId: connections[item.platform] || null,
-      now: at
+      now: at,
+      ...(handoff ? { handoff } : {})
     });
     store.updateCampaignState(result.campaign);
     results.push({
