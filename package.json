@@ -1,9 +1,16 @@
 {
   "name": "bip-ai",
   "version": "0.1.0",
-  "private": false,
+  "private": true,
   "type": "module",
   "description": "Building in Public AI: evidence-first, privacy-aware project activity to social draft pipeline.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/victorkay97/BIP-AI.git"
+  },
+  "bugs": {
+    "url": "https://github.com/victorkay97/BIP-AI/issues"
+  },
   "bin": {
     "bip-ai": "./src/cli.js"
   },
@@ -12,6 +19,7 @@
   },
   "scripts": {
     "start": "node ./src/cli.js",
+    "serve": "node ./src/cli.js serve",
     "test": "node --test"
   }
 }
