@@ -24,6 +24,10 @@ The project follows Semantic Versioning once releases are tagged. During the `0.
 - Deterministic safe retry chains for retryable publishing failures; duplicate retry requests collapse to one logical retry and PAG denial remains terminal.
 - Restartable first-run setup with guided/non-interactive project registration and safe local-state initialization.
 - `doctor` diagnostics for Node/config/provider/PAG readiness with secret redaction and read-only PAG health checks.
+- Runtime version/revision reporting through the CLI and `/api/health`.
+- Reproducible Git-derived source archives with SHA-256 checksum and release manifest.
+- Non-root Docker/Compose runtime with `/data` persistence, internal health checks, read-only project mounts, and runtime-only secret injection.
+- Trusted CI distribution verification covering clean archive setup, container health, and persistent state across container/image replacement.
 
 ## 0.1.0 - 2026-09-27
 

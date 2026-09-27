@@ -32,6 +32,7 @@ The current development stack includes:
 - operational approval inbox for privacy review, exact approvals, stale approvals, blocked schedules, and PAG failures
 - append-only publishing history with PAG receipt reconciliation and exact-payload safe retries
 - restartable first-run setup and redacted environment/PAG diagnostics
+- checksummed source release artifacts and a persistent-state Docker/Compose runtime
 - immutable campaign versions
 - claim provenance and unsupported-claim review gating
 - exact `version + contentHash` campaign approvals
@@ -64,6 +65,34 @@ npm run serve
 The default drafting provider is deterministic and requires no API key. PAG is optional for local capture, drafting, review, and the Control Room; it is required only for external publishing handoffs and PAG receipt reconciliation.
 
 The default database is `.bipai/bip-ai.sqlite`. See [First-run setup](./docs/SETUP.md) for configuration, headless setup, safe diagnostics, and PAG/provider checks.
+
+## Packaged installation
+
+BIP-AI v0.2 supports a checksummed source archive and a Docker/Compose runtime. npm publication remains disabled.
+
+Build a source release artifact:
+
+```bash
+npm run dist
+```
+
+Build and run the containerized Control Room:
+
+```bash
+docker build -t bip-ai:dev .
+docker volume create bipai-data
+docker run --rm \
+  -p 127.0.0.1:8790:8790 \
+  -v bipai-data:/data \
+  -v "$PWD:/workspace/project:ro" \
+  bip-ai:dev
+```
+
+Mutable application state lives under `/data` and should stay on the same named volume across container replacement or upgrades. Credentials are runtime environment variables only; they are not copied into release artifacts or image layers.
+
+Use `node ./src/cli.js version` (or `docker run --rm bip-ai:dev version`) for runtime identity, and `GET /api/health` for packaged health/readiness.
+
+See [Distribution and installation](./docs/DISTRIBUTION.md) for checksum verification, Docker Compose, project mounts, secrets, persistence, and upgrades.
 
 ## Core pipeline
 
@@ -125,6 +154,7 @@ BIP-AI is licensed under the [Apache License 2.0](./LICENSE). See [NOTICE](./NOT
 - [Approval inbox](./docs/APPROVAL-INBOX.md)
 - [Publishing history and safe retries](./docs/PUBLISHING-HISTORY.md)
 - [First-run setup and doctor](./docs/SETUP.md)
+- [Distribution and installation](./docs/DISTRIBUTION.md)
 - [External / WhatsApp adapters](./docs/EXTERNAL-ADAPTERS.md)
 - [Dependency policy](./docs/DEPENDENCY-POLICY.md)
 - [Release policy](./docs/RELEASING.md)

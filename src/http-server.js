@@ -11,6 +11,7 @@ import { ingestExternalUpdate } from './adapters/external-update.js';
 import { clearCampaignSchedule, listDueSchedules, runDueSchedules, scheduleCampaign } from './scheduling.js';
 import { parseListQuery, queryCampaigns, queryEvents, sourceIndex } from './query.js';
 import { buildApprovalInbox, exactCampaignVersion, parseApprovalInboxQuery, queryApprovalInbox } from './approval-inbox.js';
+import { runtimeIdentity } from './version.js';
 
 const DEFAULT_PUBLIC_DIR = fileURLToPath(new URL('../public', import.meta.url));
 const MIME = { '.html':'text/html; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.css':'text/css; charset=utf-8', '.svg':'image/svg+xml' };
@@ -62,7 +63,7 @@ export function createBipServer({ store, projects, app = null, pagFactory = null
     const path = url.pathname;
 
     try {
-      if (req.method === 'GET' && path === '/api/health') return json(res, 200, { ok:true, service:'bip-ai', version:'0.2-dev' });
+      if (req.method === 'GET' && path === '/api/health') return json(res, 200, { ok:true, ...runtimeIdentity() });
       if (req.method === 'GET' && path === '/api/config') return json(res, 200, { ...safeConfig });
       if (req.method === 'GET' && path === '/api/projects') return json(res, 200, { projects:projects.list() });
       if (req.method === 'GET' && path === '/api/capture/status') {
