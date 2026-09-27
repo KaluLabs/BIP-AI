@@ -82,6 +82,21 @@ export class BipStore {
         updated_at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_capture_sources_project ON capture_sources(project_id, source_type);
+      CREATE TABLE IF NOT EXISTS narrative_memory (
+        project_id TEXT PRIMARY KEY,
+        revision TEXT NOT NULL,
+        payload_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS narrative_memory_controls (
+        project_id TEXT NOT NULL,
+        entry_id TEXT NOT NULL,
+        action TEXT NOT NULL CHECK(action IN ('archive', 'forget')),
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY(project_id, entry_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_narrative_memory_controls_project
+        ON narrative_memory_controls(project_id, action, updated_at DESC);
     `);
   }
 
@@ -291,5 +306,70 @@ export class BipStore {
       health: JSON.parse(row.health_json),
       updatedAt: row.updated_at
     }));
+  }
+
+  getNarrativeMemory(projectId) {
+    const row = this.db.prepare(
+      'SELECT project_id, revision, payload_json, updated_at FROM narrative_memory WHERE project_id = ?'
+    ).get(projectId);
+    if (!row) return null;
+    const memory = JSON.parse(row.payload_json);
+    return { ...memory, revision: row.revision };
+  }
+
+  saveNarrativeMemory(memory, updatedAt = new Date().toISOString()) {
+    if (!memory?.projectId || !memory?.revision) throw new TypeError('narrative memory requires projectId and revision');
+    this.db.prepare(`
+      INSERT INTO narrative_memory(project_id, revision, payload_json, updated_at)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(project_id) DO UPDATE SET
+        revision = excluded.revision,
+        payload_json = excluded.payload_json,
+        updated_at = excluded.updated_at
+    `).run(memory.projectId, memory.revision, JSON.stringify(memory), updatedAt);
+    return structuredClone(memory);
+  }
+
+  getNarrativeControl(projectId, entryId) {
+    const row = this.db.prepare(
+      'SELECT project_id, entry_id, action, updated_at FROM narrative_memory_controls WHERE project_id = ? AND entry_id = ?'
+    ).get(projectId, entryId);
+    return row ? {
+      projectId: row.project_id,
+      entryId: row.entry_id,
+      action: row.action,
+      updatedAt: row.updated_at
+    } : null;
+  }
+
+  listNarrativeControls(projectId) {
+    return this.db.prepare(
+      'SELECT project_id, entry_id, action, updated_at FROM narrative_memory_controls WHERE project_id = ? ORDER BY entry_id'
+    ).all(projectId).map((row) => ({
+      projectId: row.project_id,
+      entryId: row.entry_id,
+      action: row.action,
+      updatedAt: row.updated_at
+    }));
+  }
+
+  setNarrativeControl({ projectId, entryId, action, updatedAt = new Date().toISOString() }) {
+    if (!projectId || !entryId) throw new TypeError('narrative control requires projectId and entryId');
+    if (!['archive', 'forget'].includes(action)) throw new TypeError('narrative control action must be archive or forget');
+    this.db.prepare(`
+      INSERT INTO narrative_memory_controls(project_id, entry_id, action, updated_at)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(project_id, entry_id) DO UPDATE SET
+        action = excluded.action,
+        updated_at = excluded.updated_at
+    `).run(projectId, entryId, action, updatedAt);
+    return this.getNarrativeControl(projectId, entryId);
+  }
+
+  clearNarrativeControl(projectId, entryId) {
+    const result = this.db.prepare(
+      'DELETE FROM narrative_memory_controls WHERE project_id = ? AND entry_id = ?'
+    ).run(projectId, entryId);
+    return Number(result.changes || 0) > 0;
   }
 }
