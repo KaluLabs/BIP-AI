@@ -8,9 +8,10 @@ import { ProjectRegistry } from './projects.js';
 import { applyEditorial, approveCampaign, exportEditorial } from './editorial.js';
 import { PagClient } from './pag-client.js';
 import { requestPagHandoff, reconcilePagHandoff } from './handoff.js';
+import { OpenAICompatibleDraftProvider, regenerateCampaignDrafts } from './drafting.js';
 
 function usage() {
-  console.log(`BIP-AI v0.4-dev\n\nCommands:\n  event emit <event.json>\n  events list [projectId]\n  campaigns list [projectId]\n  campaigns show <campaignId>\n  campaigns versions <campaignId>\n  campaigns approve <campaignId>\n  editorial export <campaignId> [output.json]\n  editorial import <campaignId> <editorial.json>\n  inbox emit <event.json>\n  inbox process\n  git scan <projectId> <repoPath> [since]\n  projects add <projectId> <repoPath>\n  projects list\n  request-x <campaignId>\n  request-linkedin <campaignId>\n  handoff status <x|linkedin> <campaignId>\n`);
+  console.log(`BIP-AI v0.5-dev\n\nCommands:\n  event emit <event.json>\n  events list [projectId]\n  campaigns list [projectId]\n  campaigns show <campaignId>\n  campaigns versions <campaignId>\n  campaigns approve <campaignId>\n  editorial export <campaignId> [output.json]\n  editorial import <campaignId> <editorial.json>\n  inbox emit <event.json>\n  inbox process\n  git scan <projectId> <repoPath> [since]\n  projects add <projectId> <repoPath>\n  projects list\n  request-x <campaignId>\n  request-linkedin <campaignId>\n  handoff status <x|linkedin> <campaignId>\n  draft regenerate <campaignId>\n`);
 }
 
 function print(value) { console.log(JSON.stringify(value, null, 2)); }
@@ -30,6 +31,16 @@ try {
   const inbox = new FileInbox(process.env.BIP_AI_EVENT_DIR || '.bipai/events');
   const projects = new ProjectRegistry(process.env.BIP_AI_PROJECTS || '.bipai/projects.json');
   const createPag = () => new PagClient({ baseUrl: process.env.PAG_BASE_URL || 'http://127.0.0.1:8787', token: process.env.PAG_ACTOR_TOKEN });
+  const createDraftProvider = () => {
+    const kind = process.env.BIP_AI_DRAFT_PROVIDER || 'deterministic';
+    if (kind === 'deterministic') return null;
+    if (kind === 'openai-compatible') return new OpenAICompatibleDraftProvider({
+      baseUrl: process.env.BIP_AI_DRAFT_BASE_URL,
+      apiKey: process.env.BIP_AI_DRAFT_API_KEY,
+      model: process.env.BIP_AI_DRAFT_MODEL
+    });
+    throw new Error(`unsupported draft provider: ${kind}`);
+  };
 
   if (command === 'event' && subcommand === 'emit') {
     if (!arg1) throw new Error('event emit requires a JSON file');
@@ -86,6 +97,10 @@ try {
     if (!['x', 'linkedin'].includes(arg1) || !arg2) throw new Error('handoff status requires <x|linkedin> <campaignId>');
     const result = await reconcilePagHandoff(requireCampaign(store, arg2), arg1, { pag: createPag() });
     store.updateCampaignState(result.campaign);
+    print(result);
+  } else if (command === 'draft' && subcommand === 'regenerate') {
+    const result = await regenerateCampaignDrafts(requireCampaign(store, arg1), { provider: createDraftProvider() });
+    store.saveCampaignVersion(result.campaign);
     print(result);
   } else {
     usage();
