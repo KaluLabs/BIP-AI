@@ -81,7 +81,7 @@ The goal of v0.2.0 is to make BIP-AI useful as an everyday operating surface rat
 
 ### Wave A — editorial workspace
 
-- [ ] **[BIP-009 — Editorial calendar + scheduling](https://github.com/victorkay97/BIP-AI/issues/24)**
+- [x] **[BIP-009 — Editorial calendar + scheduling](https://github.com/victorkay97/BIP-AI/issues/24)**
   - date/time scheduling and timezone-aware planned publication
   - planned / drafted / approved / handed-off / published / failed states
   - rescheduling without invalidating content unless the payload changes
