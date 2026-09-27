@@ -10,11 +10,26 @@ function tryGit(repoPath, args) {
   catch (error) { return { ok: false, error }; }
 }
 
+function sanitizeRemote(value) {
+  if (!value) return null;
+  const remote = String(value).trim();
+  try {
+    const url = new URL(remote);
+    if (url.username || url.password) {
+      url.username = '';
+      url.password = '';
+    }
+    return url.toString();
+  } catch {
+    return remote;
+  }
+}
+
 export function inspectGitRepository(repoPath) {
   const path = resolve(repoPath);
   const topLevel = git(path, ['rev-parse', '--show-toplevel']);
   const remote = (() => {
-    try { return git(path, ['config', '--get', 'remote.origin.url']) || null; }
+    try { return sanitizeRemote(git(path, ['config', '--get', 'remote.origin.url'])) || null; }
     catch { return null; }
   })();
   return { path: topLevel, name: basename(topLevel), remote };
