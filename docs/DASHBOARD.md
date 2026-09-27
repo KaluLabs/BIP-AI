@@ -250,3 +250,14 @@ Duplicate retry actions against the same failed attempt collapse onto the same d
 PAG denial never receives a retry control.
 
 See [Publishing history and safe retries](./PUBLISHING-HISTORY.md) for journal semantics, restart behavior, and the API contract.
+
+
+## Narrative memory
+
+When a single project is selected, the Control Room loads its derived narrative memory.
+
+The panel shows story arcs, entry state/privacy, event-field provenance, and operator controls. REVIEW entries remain non-draftable; BLOCK source material is omitted entirely.
+
+Archive/forget/restore mutations require the normal same-origin CSRF header and affect only derived memory. Immutable ProjectEvents and campaign history are not rewritten.
+
+See [Project narrative memory](./NARRATIVE-MEMORY.md).
