@@ -12,6 +12,7 @@ import { clearCampaignSchedule, listDueSchedules, runDueSchedules, scheduleCampa
 import { parseListQuery, queryCampaigns, queryEvents, sourceIndex } from './query.js';
 import { buildApprovalInbox, exactCampaignVersion, parseApprovalInboxQuery, queryApprovalInbox } from './approval-inbox.js';
 import { runtimeIdentity } from './version.js';
+import { getNarrativeMemory, narrativeContextClaims, rebuildNarrativeMemory, restoreNarrativeEntry, setNarrativeEntryControl } from './narrative-memory.js';
 
 const DEFAULT_PUBLIC_DIR = fileURLToPath(new URL('../public', import.meta.url));
 const MIME = { '.html':'text/html; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.css':'text/css; charset=utf-8', '.svg':'image/svg+xml' };
@@ -94,6 +95,29 @@ export function createBipServer({ store, projects, app = null, pagFactory = null
       if (req.method === 'POST' && /^\/api\/projects\/[^/]+\/github\/clear$/.test(path)) {
         requireCsrf(req); const id=decodeURIComponent(path.split('/')[3]); projectOr404(projects,id);
         await bodyJson(req); return json(res,200,{project:projects.clearGithub(id)});
+      }
+      if (req.method === 'GET' && /^\/api\/projects\/[^/]+\/narrative-memory$/.test(path)) {
+        const id=decodeURIComponent(path.split('/')[3]); projectOr404(projects,id);
+        const result=getNarrativeMemory(store,id);
+        return json(res,200,{...result,controls:store.listNarrativeControls(id)});
+      }
+      if (req.method === 'POST' && /^\/api\/projects\/[^/]+\/narrative-memory\/rebuild$/.test(path)) {
+        requireCsrf(req); const id=decodeURIComponent(path.split('/')[3]); projectOr404(projects,id); await bodyJson(req);
+        return json(res,200,{memory:rebuildNarrativeMemory(store,id),rebuilt:true,controls:store.listNarrativeControls(id)});
+      }
+      if (req.method === 'POST' && /^\/api\/projects\/[^/]+\/narrative-memory\/[^/]+\/(archive|forget|restore)$/.test(path)) {
+        requireCsrf(req);
+        const parts=path.split('/'); const id=decodeURIComponent(parts[3]); const entryId=decodeURIComponent(parts[5]); const action=parts[6];
+        projectOr404(projects,id); await bodyJson(req);
+        try {
+          const memory=action==='restore'
+            ? restoreNarrativeEntry(store,id,entryId)
+            : setNarrativeEntryControl(store,id,entryId,action);
+          return json(res,200,{memory,controls:store.listNarrativeControls(id)});
+        } catch(error) {
+          if(error instanceof TypeError || /not found/.test(String(error.message||''))) throw httpError(400,error.message);
+          throw error;
+        }
       }
       if (req.method === 'GET' && /^\/api\/projects\/[^/]+$/.test(path)) {
         const id=decodeURIComponent(path.split('/').pop()); const project=projectOr404(projects,id);
@@ -241,7 +265,10 @@ export function createBipServer({ store, projects, app = null, pagFactory = null
       }
       if (req.method === 'POST' && /^\/api\/campaigns\/[^/]+\/draft\/regenerate$/.test(path)) {
         requireCsrf(req); const id=decodeURIComponent(path.split('/')[3]); const provider=draftProviderFactory ? draftProviderFactory() : null;
-        const result=await regenerateCampaignDrafts(campaignOr404(store,id),{provider}); store.saveCampaignVersion(result.campaign); return json(res,200,result);
+        const campaign=campaignOr404(store,id);
+        const memory=getNarrativeMemory(store,campaign.projectId).memory;
+        const narrativeContext=narrativeContextClaims(memory,{excludeEventId:campaign.eventId});
+        const result=await regenerateCampaignDrafts(campaign,{provider,narrativeContext}); store.saveCampaignVersion(result.campaign); return json(res,200,result);
       }
       if (req.method === 'POST' && /^\/api\/campaigns\/[^/]+\/handoff\/(x|linkedin)$/.test(path)) {
         requireCsrf(req); if(!pagFactory) throw httpError(503,'PAG is not configured');

@@ -100,6 +100,8 @@ test('v0.1.0 SQLite state opens under v0.2 without losing legacy records', () =>
       'campaign_versions',
       'publishing_journal',
       'capture_sources',
+      'narrative_memory',
+      'narrative_memory_controls',
       'publishing_journal_no_update',
       'publishing_journal_no_delete'
     )
@@ -108,6 +110,8 @@ test('v0.1.0 SQLite state opens under v0.2 without losing legacy records', () =>
 
   assert.ok(schema.some((row) => row.type === 'table' && row.name === 'publishing_journal'));
   assert.ok(schema.some((row) => row.type === 'table' && row.name === 'capture_sources'));
+  assert.ok(schema.some((row) => row.type === 'table' && row.name === 'narrative_memory'));
+  assert.ok(schema.some((row) => row.type === 'table' && row.name === 'narrative_memory_controls'));
   assert.ok(schema.some((row) => row.type === 'trigger' && row.name === 'publishing_journal_no_update'));
   assert.ok(schema.some((row) => row.type === 'trigger' && row.name === 'publishing_journal_no_delete'));
 

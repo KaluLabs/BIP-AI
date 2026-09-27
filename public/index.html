@@ -171,6 +171,18 @@
       </section>
 
       <section class="panel">
+        <div class="panel-head panel-head-wrap">
+          <div><p class="eyebrow">PROJECT CONTEXT</p><h2>Narrative memory</h2></div>
+          <div class="panel-tools">
+            <span id="narrative-count" class="pill muted">Choose a project</span>
+            <button id="rebuild-narrative" class="button secondary" type="button" disabled>Rebuild</button>
+          </div>
+        </div>
+        <p class="subtle">Derived, project-scoped context with source provenance. REVIEW stays non-draftable; BLOCK content is omitted. Archive/forget controls affect derived memory, not immutable event history.</p>
+        <div id="narrative-memory" class="narrative-memory"><div class="empty-list"><strong>Choose one project</strong><span>Use the project filter to inspect its story arcs and evidence.</span></div></div>
+      </section>
+
+      <section class="panel">
         <div class="panel-head"><div><p class="eyebrow">CALENDAR</p><h2>Editorial schedule</h2></div><span class="pill muted">filtered · current month</span></div>
         <div id="calendar" class="calendar"></div>
       </section>

@@ -6,7 +6,9 @@ The project follows Semantic Versioning once releases are tagged. During the `0.
 
 ## Unreleased
 
-No unreleased changes yet.
+### Added
+
+- Project-scoped narrative memory with deterministic rebuilds, evidence-bound story arcs, privacy-aware draft context, and Control Room/CLI archive-forget-restore controls.
 
 ## 0.2.0 - 2026-09-27
 

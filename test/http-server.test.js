@@ -129,3 +129,49 @@ test('project GitHub source can be configured and cleared through CSRF-protected
     assert.equal(cleared.body.project.github,undefined);
   } finally { await new Promise(r=>f.server.close(r)); f.store.close(); }
 });
+
+
+test('project narrative memory API exposes provenance and CSRF-protected controls', async () => {
+  const f=await fixture();
+  try {
+    const initial=await jsonFetch(`${f.base}/api/projects/bip-ai/narrative-memory`);
+    assert.equal(initial.response.status,200);
+    assert.equal(initial.body.memory.projectId,'bip-ai');
+    assert.ok(initial.body.memory.entries.length>0);
+    const entry=initial.body.memory.entries[0];
+    assert.equal(entry.sources[0].type,'event');
+    assert.ok(entry.sources[0].path.startsWith('event.'));
+
+    const denied=await jsonFetch(`${f.base}/api/projects/bip-ai/narrative-memory/${entry.id}/archive`,{
+      method:'POST',headers:{'content-type':'application/json'},body:'{}'
+    });
+    assert.equal(denied.response.status,403);
+
+    const archived=await jsonFetch(`${f.base}/api/projects/bip-ai/narrative-memory/${entry.id}/archive`,{
+      method:'POST',headers:{'content-type':'application/json','x-bipai-csrf':'1'},body:'{}'
+    });
+    assert.equal(archived.response.status,200);
+    assert.equal(archived.body.memory.entries.find((item)=>item.id===entry.id).state,'archived');
+
+    const restored=await jsonFetch(`${f.base}/api/projects/bip-ai/narrative-memory/${entry.id}/restore`,{
+      method:'POST',headers:{'content-type':'application/json','x-bipai-csrf':'1'},body:'{}'
+    });
+    assert.equal(restored.response.status,200);
+    assert.equal(restored.body.memory.entries.find((item)=>item.id===entry.id).state,'active');
+  } finally { await new Promise(r=>f.server.close(r)); f.store.close(); }
+});
+
+test('narrative rebuild endpoint is deterministic for unchanged state', async () => {
+  const f=await fixture();
+  try {
+    const first=await jsonFetch(`${f.base}/api/projects/bip-ai/narrative-memory/rebuild`,{
+      method:'POST',headers:{'content-type':'application/json','x-bipai-csrf':'1'},body:'{}'
+    });
+    const second=await jsonFetch(`${f.base}/api/projects/bip-ai/narrative-memory/rebuild`,{
+      method:'POST',headers:{'content-type':'application/json','x-bipai-csrf':'1'},body:'{}'
+    });
+    assert.equal(first.response.status,200);
+    assert.equal(second.response.status,200);
+    assert.deepEqual(second.body.memory,first.body.memory);
+  } finally { await new Promise(r=>f.server.close(r)); f.store.close(); }
+});
