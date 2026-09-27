@@ -1,25 +1,27 @@
 # Licensing decision
 
-BIP-AI is intended to become an open-source project, but an explicit license has **not yet been selected**. The repository should remain private until a license is chosen and committed.
+BIP-AI is licensed under the **Apache License, Version 2.0**.
 
-Publishing source code without a license does not grant the normal open-source permissions to use, modify, or redistribute it.
+The project uses the SPDX identifier `Apache-2.0`, the canonical license text is stored in the repository root as `LICENSE`, and project attribution information is stored in `NOTICE`.
 
-## Candidate licenses
+## Why Apache-2.0
 
-### MIT
+Apache-2.0 is a permissive open-source license. It allows use, modification, distribution, and commercial adoption without requiring downstream applications to publish their own source code.
 
-Permissive and short. Allows commercial use, modification, distribution, and proprietary derivatives while requiring preservation of the copyright/license notice.
+It was selected for BIP-AI because it combines permissive adoption with explicit contributor patent licensing and patent-termination terms. That is a useful fit for an extensible agent/infrastructure project that may receive outside contributions or be embedded in commercial systems.
 
-### Apache License 2.0
+## Practical implications
 
-Permissive like MIT, with an explicit patent grant and additional notice/attribution requirements. Often useful when patent clarity and larger-company adoption matter.
+Downstream users may build proprietary products or hosted services using BIP-AI, provided they comply with Apache-2.0's redistribution and notice requirements.
 
-### GNU AGPLv3
+Modified files distributed to others must carry prominent notices that they were changed, and applicable copyright, patent, trademark, attribution, license, and NOTICE information must be preserved as required by the license.
 
-Strong network copyleft. Modified versions offered as a network service generally must provide corresponding source to users. This can protect openness of hosted derivatives but is less permissive for commercial/proprietary adoption.
+The Apache license does not grant rights to project or third-party trademarks beyond normal descriptive use.
 
-## Required decision before public release
+## Package publication
 
-The maintainer must explicitly choose the license, add the canonical license text as `LICENSE`, update package metadata, and confirm compatibility with any future third-party dependencies.
+The repository package metadata identifies `Apache-2.0`, but `private: true` remains enabled intentionally. Selecting the open-source license does not automatically mean BIP-AI should be published to npm or another registry. Registry publication remains a separate release decision.
 
-No automated task or contributor should select a license on the maintainer's behalf.
+## Future dependencies
+
+Any future runtime or development dependency must be reviewed for license compatibility before it becomes part of a public release. See [Dependency policy](./DEPENDENCY-POLICY.md).
