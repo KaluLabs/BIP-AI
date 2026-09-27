@@ -1,0 +1,32 @@
+services:
+  bip-ai:
+    build:
+      context: .
+      args:
+        BIP_AI_VERSION: ${BIP_AI_VERSION:-dev}
+        BIP_AI_REVISION: ${BIP_AI_REVISION:-local}
+    image: bip-ai:${BIP_AI_VERSION:-dev}
+    init: true
+    read_only: true
+    ports:
+      - "127.0.0.1:8790:8790"
+    volumes:
+      - bipai-data:/data
+      - ${BIP_AI_PROJECT_PATH:-.}:/workspace/project:ro
+    environment:
+      BIP_AI_DRAFT_PROVIDER: ${BIP_AI_DRAFT_PROVIDER:-deterministic}
+      BIP_AI_DRAFT_BASE_URL: ${BIP_AI_DRAFT_BASE_URL:-}
+      BIP_AI_DRAFT_API_KEY: ${BIP_AI_DRAFT_API_KEY:-}
+      BIP_AI_DRAFT_MODEL: ${BIP_AI_DRAFT_MODEL:-}
+      BIP_AI_GITHUB_TOKEN: ${BIP_AI_GITHUB_TOKEN:-}
+      PAG_BASE_URL: ${PAG_BASE_URL:-http://host.docker.internal:8787}
+      PAG_ACTOR_TOKEN: ${PAG_ACTOR_TOKEN:-}
+      BIP_AI_X_CONNECTION_ID: ${BIP_AI_X_CONNECTION_ID:-}
+      BIP_AI_LINKEDIN_CONNECTION_ID: ${BIP_AI_LINKEDIN_CONNECTION_ID:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    tmpfs:
+      - /tmp
+
+volumes:
+  bipai-data:
