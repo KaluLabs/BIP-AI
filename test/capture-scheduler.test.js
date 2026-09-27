@@ -52,6 +52,7 @@ function event(id, occurredAt) {
 test('Git cursor survives restart and only new commits are captured afterward', async () => {
   const root = mkdtempSync(join(tmpdir(), 'bip-capture-restart-'));
   const repoPath = initRepo(root);
+  git(repoPath, ['remote', 'add', 'origin', 'https://user:super-secret@example.com/org/repo.git']);
   commit(repoPath, 'feat: first', 1);
   const secondSha = commit(repoPath, 'fix: second', 2);
 
@@ -70,6 +71,8 @@ test('Git cursor survives restart and only new commits are captured afterward', 
   assert.equal(first.results[0].scan.accepted, 2);
   assert.equal(store1.listEvents('p').length, 2);
   assert.equal(store1.getCaptureState('git:p').cursor.headSha, secondSha);
+  assert.equal(store1.listEvents('p')[0].metadata.git.repository, 'https://example.com/org/repo.git');
+  assert.doesNotMatch(JSON.stringify(store1.listEvents('p')), /super-secret|user:super-secret/);
   store1.close();
 
   const thirdSha = commit(repoPath, 'feat: third', 3);
@@ -271,6 +274,40 @@ test('capture status reports never-run and persisted source health without crede
     assert.equal(persisted[0].cursor.headSha, 'abc123');
     assert.equal(persisted[0].health.status, 'healthy');
     assert.doesNotMatch(JSON.stringify(persisted), /token|password|credential|secret/i);
+  } finally {
+    store.close();
+  }
+});
+
+
+test('rewritten Git history recovers through bounded replay and reports a warning', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'bip-capture-rewrite-'));
+  const repoPath = initRepo(root);
+  commit(repoPath, 'feat: base', 1);
+  commit(repoPath, 'feat: old tip', 2);
+
+  const store = new BipStore(':memory:');
+  const projectsFile = join(root, 'projects.json');
+  const projects = new ProjectRegistry(projectsFile);
+  projects.add({ id: 'p', path: repoPath });
+  const app = new BipAI({ store, storyThreshold: 99 });
+  const scheduler = new CaptureScheduler({ store, app, projects, pollMs: 1000, batchSize: 50 });
+
+  try {
+    const initial = await scheduler.runOnce({ force: true, now: '2026-09-27T09:00:00.000Z' });
+    assert.equal(initial.results[0].health.status, 'healthy');
+    const oldCursor = store.getCaptureState('git:p').cursor.headSha;
+
+    git(repoPath, ['reset', '--hard', 'HEAD~1']);
+    const replacement = commit(repoPath, 'fix: replacement tip', 3);
+    assert.notEqual(replacement, oldCursor);
+
+    const recovered = await scheduler.runOnce({ force: true, now: '2026-09-27T09:01:00.000Z' });
+    assert.equal(recovered.results[0].ok, true);
+    assert.equal(recovered.results[0].health.status, 'healthy_with_warning');
+    assert.equal(recovered.results[0].scan.historyRewritten, true);
+    assert.equal(store.getCaptureState('git:p').cursor.headSha, replacement);
+    assert.equal(store.listEvents('p').length, 3);
   } finally {
     store.close();
   }
