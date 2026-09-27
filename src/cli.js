@@ -10,9 +10,11 @@ import { PagClient } from './pag-client.js';
 import { requestPagHandoff, reconcilePagHandoff } from './handoff.js';
 import { OpenAICompatibleDraftProvider, regenerateCampaignDrafts } from './drafting.js';
 import { createBipServer, listenBipServer } from './http-server.js';
+import { ingestExternalUpdate } from './adapters/external-update.js';
+import { exportApprovedStatusPackage } from './status-export.js';
 
 function usage() {
-  console.log(`BIP-AI v0.6-dev\n\nCommands:\n  event emit <event.json>\n  events list [projectId]\n  campaigns list [projectId]\n  campaigns show <campaignId>\n  campaigns versions <campaignId>\n  campaigns approve <campaignId>\n  editorial export <campaignId> [output.json]\n  editorial import <campaignId> <editorial.json>\n  inbox emit <event.json>\n  inbox process\n  git scan <projectId> <repoPath> [since]\n  projects add <projectId> <repoPath>\n  projects list\n  request-x <campaignId>\n  request-linkedin <campaignId>\n  handoff status <x|linkedin> <campaignId>\n  draft regenerate <campaignId>\n  serve\n`);
+  console.log(`BIP-AI v0.6-dev\n\nCommands:\n  event emit <event.json>\n  events list [projectId]\n  campaigns list [projectId]\n  campaigns show <campaignId>\n  campaigns versions <campaignId>\n  campaigns approve <campaignId>\n  editorial export <campaignId> [output.json]\n  editorial import <campaignId> <editorial.json>\n  inbox emit <event.json>\n  inbox process\n  git scan <projectId> <repoPath> [since]\n  projects add <projectId> <repoPath>\n  projects list\n  request-x <campaignId>\n  request-linkedin <campaignId>\n  handoff status <x|linkedin> <campaignId>\n  draft regenerate <campaignId>\n  external emit <update.json>\n  status export <campaignId> [output.json]\n  serve\n`);
 }
 
 function print(value) { console.log(JSON.stringify(value, null, 2)); }
@@ -103,6 +105,13 @@ try {
     const result = await regenerateCampaignDrafts(requireCampaign(store, arg1), { provider: createDraftProvider() });
     store.saveCampaignVersion(result.campaign);
     print(result);
+  } else if (command === 'external' && subcommand === 'emit') {
+    if (!arg1) throw new Error('external emit requires an update JSON file');
+    print(ingestExternalUpdate(app, JSON.parse(readFileSync(arg1, 'utf8'))));
+  } else if (command === 'status' && subcommand === 'export') {
+    const pkg = exportApprovedStatusPackage(requireCampaign(store, arg1));
+    if (arg2) { writeFileSync(arg2, `${JSON.stringify(pkg, null, 2)}\n`); print({ written: arg2 }); }
+    else print(pkg);
   } else if (command === 'serve') {
     const host = process.env.BIP_AI_HOST || '127.0.0.1';
     if (!['127.0.0.1', 'localhost', '::1'].includes(host) && process.env.BIP_AI_ALLOW_REMOTE !== '1') {
@@ -110,7 +119,7 @@ try {
     }
     const pagFactory = process.env.PAG_ACTOR_TOKEN ? createPag : null;
     const server = createBipServer({
-      store, projects, pagFactory, draftProviderFactory: createDraftProvider,
+      store, projects, app, pagFactory, draftProviderFactory: createDraftProvider,
       connections: { x: process.env.BIP_AI_X_CONNECTION_ID || null, linkedin: process.env.BIP_AI_LINKEDIN_CONNECTION_ID || null },
       storyThreshold: Number(process.env.BIP_AI_STORY_THRESHOLD || 3),
       safeConfig: {
