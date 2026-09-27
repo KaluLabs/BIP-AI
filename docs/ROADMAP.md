@@ -105,7 +105,7 @@ BIP-009 and BIP-010 should be implemented in parallel against shared API/query c
   - duplicate suppression
   - observable capture health
 
-- [ ] **[BIP-012 — GitHub activity capture source](https://github.com/victorkay97/BIP-AI/issues/27)**
+- [x] **[BIP-012 — GitHub activity capture source](https://github.com/victorkay97/BIP-AI/issues/27)**
   - commits, pull requests, issues, releases, and CI milestones
   - optional authenticated access without storing raw credentials in BIP-AI state
   - normalized ProjectEvents
