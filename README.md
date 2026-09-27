@@ -25,6 +25,7 @@ The current development stack includes:
 - storyworthiness scoring
 - `PASS / REVIEW / BLOCK` privacy gates
 - traceable `StoryBrief` generation
+- project-scoped narrative memory with evidence-bound story arcs and privacy-aware draft context
 - deterministic X thread and LinkedIn narrative drafts
 - local Git scanner and filesystem event inbox
 - restart-safe automatic local Git capture with durable SHA cursors and bounded retry backoff
@@ -152,6 +153,7 @@ BIP-AI is licensed under the [Apache License 2.0](./LICENSE). See [NOTICE](./NOT
 - [Automated local capture](./docs/CAPTURE.md)
 - [GitHub activity capture](./docs/GITHUB-CAPTURE.md)
 - [Approval inbox](./docs/APPROVAL-INBOX.md)
+- [Project narrative memory](./docs/NARRATIVE-MEMORY.md)
 - [Publishing history and safe retries](./docs/PUBLISHING-HISTORY.md)
 - [First-run setup and doctor](./docs/SETUP.md)
 - [Distribution and installation](./docs/DISTRIBUTION.md)
