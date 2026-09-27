@@ -15,6 +15,7 @@ Environment settings:
 - `BIP_AI_HOST` — defaults to `127.0.0.1`.
 - `BIP_AI_PORT` — defaults to `8790`.
 - `BIP_AI_ALLOW_REMOTE` — defaults to `0`. A non-loopback bind is refused unless this is explicitly set to `1`.
+- `BIP_AI_SCHEDULE_POLL_MS` — defaults to `30000`. When PAG is configured, the local server checks due editorial schedules at this interval.
 
 ## What the dashboard exposes
 
@@ -26,9 +27,57 @@ Environment settings:
 - StoryBrief claim provenance
 - deterministic/provider draft regeneration
 - independent X and LinkedIn PAG handoff/reconciliation state
-- a lightweight content-activity calendar based on campaign creation dates
+- a per-platform editorial calendar based on scheduled handoff times
+- independent X and LinkedIn schedule/reschedule/clear controls
+- lifecycle state for each platform: `drafted`, `approved`, `planned`, `handed_off`, `published`, or `failed`
+- due/overdue schedule visibility
 
-The dashboard may display local repository paths because it is an operator surface. It does not expose PAG actor tokens, drafting-provider API keys, or social-account credentials. `/api/config` returns only safe provider/configuration names and booleans.
+The dashboard may display local repository paths because it is an operator surface. It does not expose PAG actor tokens, drafting-provider API keys, or social-account credentials. `/api/config` returns only safe provider/configuration names, booleans, and non-secret scheduling settings.
+
+## Editorial scheduling
+
+Scheduling is **not publishing authority**.
+
+A schedule records an absolute RFC3339 publication time and optional IANA timezone label independently for X and LinkedIn. The timestamp is stored in the existing campaign state, so it survives process restarts without a separate scheduling database.
+
+Scheduling and rescheduling do **not** change campaign `version`, `contentHash`, or an existing exact-version approval because schedule metadata is not part of the publishing payload.
+
+A content edit behaves differently:
+
+- campaign version increments;
+- content hash is recalculated;
+- existing approval is invalidated;
+- existing PAG handoff bindings are reset;
+- a still-active `planned` schedule may remain visible;
+- when that schedule becomes due, execution fails closed until the edited version is explicitly approved.
+
+Schedules that were already handed off, published, or failed are not carried forward as active plans when content is edited.
+
+## Due execution
+
+When `PAG_ACTOR_TOKEN` is configured, the local Control Room server runs a lightweight due-schedule loop using `BIP_AI_SCHEDULE_POLL_MS`.
+
+Before any scheduled handoff, BIP-AI re-checks the same invariants as a manual handoff:
+
+1. privacy must be `PASS`;
+2. structural/editorial quality must be `PASS`;
+3. the campaign must be explicitly approved for handoff;
+4. approval version and content hash must exactly match the current campaign;
+5. PAG must accept the same content-bound handoff request.
+
+The scheduler never receives social-account credentials and cannot bypass PAG.
+
+If no PAG client is configured, automatic scheduled execution is disabled. Planned items remain visible and become due/overdue rather than being silently discarded.
+
+If execution is attempted and approval/PAG validation fails, the platform schedule moves to `failed` with a non-secret failure code so it is actionable. Rescheduling creates a fresh `planned` attempt without changing content approval.
+
+The API also exposes:
+
+- `GET /api/schedules/due?at=<RFC3339>` — deterministic due queue for inspection/testing.
+- `POST /api/schedules/run-due` — same-origin, CSRF-protected explicit due execution; PAG must be configured.
+- `POST /api/campaigns/:id/schedule/x`
+- `POST /api/campaigns/:id/schedule/linkedin`
+- matching `.../clear` routes for removing a plan.
 
 ## Mutation protection
 
