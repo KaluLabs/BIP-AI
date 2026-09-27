@@ -4,7 +4,7 @@
 
 BIP-AI observes project events from Git, local/manual activity, and optional external adapters; turns them into structured story briefs; creates reviewable X and LinkedIn drafts; and delegates any external publishing action to a permissioned gateway such as [Personal Access Gateway (PAG)](https://github.com/victorkay97/Personal-Access-Gateway).
 
-BIP-AI is a public open-source project licensed under the **Apache License 2.0**. The first public release is `v0.1.0`; active development is focused on the `v0.2.0` daily-use productization roadmap. See [Licensing](./docs/LICENSING.md) and the [Roadmap](./docs/ROADMAP.md).
+BIP-AI is a public open-source project licensed under the **Apache License 2.0**. The current public release is `v0.2.0`; active development is focused on the `v0.3.0` contextual-intelligence and extensibility roadmap. See [Licensing](./docs/LICENSING.md) and the [Roadmap](./docs/ROADMAP.md).
 
 ## Principles
 
@@ -68,7 +68,7 @@ The default database is `.bipai/bip-ai.sqlite`. See [First-run setup](./docs/SET
 
 ## Packaged installation
 
-BIP-AI v0.2 supports a checksummed source archive and a Docker/Compose runtime. npm publication remains disabled.
+BIP-AI v0.2.0 supports a checksummed source archive and a Docker/Compose runtime. npm publication remains disabled.
 
 Build a source release artifact:
 
