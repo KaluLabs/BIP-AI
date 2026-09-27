@@ -64,3 +64,16 @@ test('dashboard shell is served with browser hardening headers', async () => {
     assert.match(html,/BIP-AI Control Room/);
   } finally { await new Promise(r=>f.server.close(r)); f.store.close(); }
 });
+
+
+test('external transport can submit a privacy-safe update through the local adapter endpoint', async () => {
+  const root=mkdtempSync(join(tmpdir(),'bip-http-ext-'));
+  const store=new BipStore(':memory:'); const projects=new ProjectRegistry(join(root,'projects.json')); projects.add({id:'bip-ai',path:root});
+  const app=new BipAI({store}); const server=createBipServer({store,projects,app}); const listening=await listenBipServer(server,{port:0});
+  try {
+    const input={projectId:'bip-ai',transport:'whatsapp',messageId:'sensitive-message-id',phone:'sensitive-phone',jid:'sensitive-jid',kind:'hardware_purchase',text:'Bought a Raspberry Pi',occurredAt:'2026-09-27T00:00:00.000Z'};
+    const {response,body}=await jsonFetch(`${listening.url}/api/adapters/external/events`,{method:'POST',headers:{'content-type':'application/json','x-bipai-csrf':'1'},body:JSON.stringify(input)});
+    assert.equal(response.status,201); assert.equal(body.accepted,true); assert.ok(body.campaign);
+    assert.doesNotMatch(JSON.stringify(body),/sensitive-message-id|sensitive-jid|sensitive-phone/);
+  } finally { await new Promise(r=>server.close(r)); store.close(); }
+});
