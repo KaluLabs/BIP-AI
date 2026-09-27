@@ -270,9 +270,18 @@ test('capture status reports never-run and persisted source health without crede
       cursor: { headSha: 'abc123' },
       health: { status: 'healthy', lastSuccessAt: '2026-09-27T09:00:00.000Z' }
     });
+    store.saveCaptureState({
+      sourceKey: 'github:p',
+      projectId: 'p',
+      sourceType: 'github',
+      cursor: { eventId: 'evt-1' },
+      health: { status: 'healthy', lastSuccessAt: '2026-09-27T09:01:00.000Z' }
+    });
     const persisted = captureStatus(store, projects);
-    assert.equal(persisted[0].cursor.headSha, 'abc123');
-    assert.equal(persisted[0].health.status, 'healthy');
+    assert.equal(persisted.length, 2);
+    assert.equal(persisted.find((item) => item.sourceType === 'git').cursor.headSha, 'abc123');
+    assert.equal(persisted.find((item) => item.sourceType === 'github').cursor.eventId, 'evt-1');
+    assert.ok(persisted.every((item) => item.health.status === 'healthy'));
     assert.doesNotMatch(JSON.stringify(persisted), /token|password|credential|secret/i);
   } finally {
     store.close();
