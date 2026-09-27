@@ -59,7 +59,9 @@ export async function requestPagHandoff(campaign, platform, { pag, connectionId 
     argsHash: intent.args_hash || approval?.args_hash || null,
     status: intent.status || null
   };
-  next.status = intent.status === 'denied' ? 'handoff_denied' : 'handoff_requested';
+  next.status = ['succeeded', 'failed', 'denied', 'expired'].includes(intent.status)
+    ? `handoff_${intent.status}`
+    : 'handoff_requested';
   next.updatedAt = new Date().toISOString();
   return { campaign: next, intent, request };
 }
