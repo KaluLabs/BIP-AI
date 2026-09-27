@@ -4,7 +4,7 @@
 
 BIP-AI observes project events from Git, local/manual activity, and optional external adapters; turns them into structured story briefs; creates reviewable X and LinkedIn drafts; and delegates any external publishing action to a permissioned gateway such as [Personal Access Gateway (PAG)](https://github.com/victorkay97/Personal-Access-Gateway).
 
-The project is being prepared for public open-source release and is licensed under the **Apache License 2.0**. The repository remains private until the remaining public-release security/settings checks are complete. See [Licensing](./docs/LICENSING.md) and the [Public release checklist](./docs/PUBLIC-RELEASE-CHECKLIST.md).
+BIP-AI is a public open-source project licensed under the **Apache License 2.0**. The first public release is `v0.1.0`; active development is focused on the `v0.2.0` daily-use productization roadmap. See [Licensing](./docs/LICENSING.md) and the [Roadmap](./docs/ROADMAP.md).
 
 ## Principles
 
@@ -33,6 +33,8 @@ The current development stack includes:
 - PAG handoff for `x.threads.create` and `linkedin.posts.create`
 - pluggable guarded drafting provider with deterministic fallback
 - local Control Room dashboard/API
+- per-platform editorial scheduling with timezone-aware planned handoffs
+- fail-closed due execution through PAG using current exact-version approval
 - transport-neutral real-world/WhatsApp update contract
 - approved-content export for a separate WhatsApp Status Manager
 - automated tests and GitHub Actions workflow
@@ -82,7 +84,7 @@ Run:
 node ./src/cli.js serve
 ```
 
-The Control Room binds to `127.0.0.1:8790` by default and exposes projects, events, campaigns, version history, claim provenance, draft editing/regeneration, approvals, and PAG handoff state.
+The Control Room binds to `127.0.0.1:8790` by default and exposes projects, events, campaigns, version history, claim provenance, draft editing/regeneration, approvals, editorial scheduling, and PAG handoff state.
 
 Remote binding is an explicit opt-in and is **not** an authentication model. See [Dashboard security](./docs/DASHBOARD.md).
 
