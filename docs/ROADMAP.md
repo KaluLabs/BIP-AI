@@ -98,7 +98,7 @@ BIP-009 and BIP-010 should be implemented in parallel against shared API/query c
 
 ### Wave B — automated capture
 
-- [ ] **[BIP-011 — Automated local capture scheduler](https://github.com/victorkay97/BIP-AI/issues/26)**
+- [x] **[BIP-011 — Automated local capture scheduler](https://github.com/victorkay97/BIP-AI/issues/26)**
   - scheduled/continuous project scans
   - durable cursors
   - restart-safe processing
