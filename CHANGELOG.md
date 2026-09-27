@@ -20,6 +20,8 @@ The project follows Semantic Versioning once releases are tagged. During the `0.
 - Composite GitHub repository-event/workflow cursors with ETag polling, conservative private-repository review defaults, and explicit rate-limit handling.
 - Operational approval inbox with priority/age ordering, provenance preview, exact-version approval, stale-approval detection, blocked schedules, and PAG failure attention states.
 - Explicit privacy REVIEW resolution with immutable versioning and required operator rationale.
+- Append-only publishing/PAG journal with database-enforced immutability, exact version/content-hash attempt binding, receipt reconciliation, and platform-isolated outcome history.
+- Deterministic safe retry chains for retryable publishing failures; duplicate retry requests collapse to one logical retry and PAG denial remains terminal.
 
 ## 0.1.0 - 2026-09-27
 
