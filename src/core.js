@@ -1,7 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto';
 
 const MEANINGFUL_TYPES = new Set([
-  'milestone', 'release', 'feature', 'fix', 'decision', 'launch', 'experiment', 'learning'
+  'milestone', 'release', 'feature', 'fix', 'decision', 'launch', 'experiment', 'learning',
+  'hardware', 'device', 'physical', 'deployment', 'meeting'
 ]);
 
 function normalizeStrings(value) {
