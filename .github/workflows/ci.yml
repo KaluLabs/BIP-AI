@@ -25,5 +25,7 @@ jobs:
         run: npm --version
       - name: Run test suite
         run: npm test
+      - name: Audit release tree
+        run: npm run audit:release
       - name: Verify distribution path
         run: npm run verify:distribution
