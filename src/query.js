@@ -247,7 +247,9 @@ export function queryCampaigns(campaigns, query, { sourceByEventId = new Map() }
     scheduledAt: scheduledAt(campaign, query.platform),
     projectId: campaign.projectId,
     privacy: campaign.privacyResult,
-    status: campaignStatus(campaign, query.platform)[0] || null
+    status: query.platform
+      ? platformStates(campaign, query.platform)[0] || campaign.status || campaign.editorialStatus || null
+      : campaign.status || campaign.editorialStatus || null
   })[query.sort];
 
   items = stableSort(items, valueFor, query.order);
