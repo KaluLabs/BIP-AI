@@ -309,3 +309,44 @@ test('mixed platform outcomes stay independent across retry', async () => {
     assert.equal(publishingHistory(store, { campaignId: campaign.id, platform: 'linkedin' }).length, 2);
   } finally { store.close(); }
 });
+
+
+test('reconciling an older attempt cannot regress a newer successful retry on the same payload', async () => {
+  const { store, campaign } = seed();
+  try {
+    const failed = await requestPublishingHandoff(store, campaign, 'x', {
+      pag: { async createIntent() { return { id: 'int-old-failed', status: 'failed', args_hash: 'old' }; } }
+    });
+    const retried = await retryPublishingHandoff(store, store.getCampaign(campaign.id), 'x', {
+      attemptId: failed.attempt.attemptId,
+      pag: {
+        async createIntent() {
+          return {
+            id: 'int-new-success',
+            status: 'succeeded',
+            args_hash: 'new',
+            execution: { status: 'succeeded' }
+          };
+        }
+      }
+    });
+    assert.equal(retried.campaign.platform.x.pagActionId, 'int-new-success');
+    assert.equal(store.getCampaign(campaign.id).platform.x.handoffStatus, 'succeeded');
+
+    const oldReceipt = await reconcilePublishingAttempt(store, store.getCampaign(campaign.id), 'x', {
+      attemptId: failed.attempt.attemptId,
+      pag: {
+        async getIntent(id) {
+          assert.equal(id, 'int-old-failed');
+          return { id, status: 'failed', args_hash: 'old' };
+        }
+      }
+    });
+
+    assert.equal(oldReceipt.campaignUpdated, false);
+    assert.equal(oldReceipt.attempt.status, 'retryable');
+    const current = store.getCampaign(campaign.id);
+    assert.equal(current.platform.x.handoffStatus, 'succeeded');
+    assert.equal(current.platform.x.pagActionId, 'int-new-success');
+  } finally { store.close(); }
+});
