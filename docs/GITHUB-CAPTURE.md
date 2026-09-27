@@ -91,13 +91,13 @@ The durable cursor therefore contains two checkpoints:
     "etag": "..."
   },
   "workflows": {
-    "id": "workflow-run-id",
+    "key": "workflow-run-id:attempt:updated-at",
     "etag": "..."
   }
 }
 ```
 
-These are provenance/checkpoint identifiers, not credentials.
+These are provenance/checkpoint identifiers, not credentials. The workflow key includes the run attempt and update timestamp so a GitHub Actions rerun can produce a new milestone even when GitHub reuses the same workflow-run ID.
 
 ## Evidence and data minimization
 
