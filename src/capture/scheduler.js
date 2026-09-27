@@ -88,8 +88,7 @@ function successHealth(previous, scan, stats, now) {
       campaignsCreated: stats.campaignsCreated,
       remaining: Number(scan.meta?.remaining || 0),
       historyRewritten: Boolean(scan.meta?.historyRewritten)
-    },
-    previousSuccessAt: previous?.lastSuccessAt || null
+    }
   };
 }
 
