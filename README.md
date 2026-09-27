@@ -27,6 +27,7 @@ The current development stack includes:
 - traceable `StoryBrief` generation
 - deterministic X thread and LinkedIn narrative drafts
 - local Git scanner and filesystem event inbox
+- restart-safe automatic local Git capture with durable SHA cursors and bounded retry backoff
 - immutable campaign versions
 - claim provenance and unsupported-claim review gating
 - exact `version + contentHash` campaign approvals
@@ -85,7 +86,7 @@ Run:
 node ./src/cli.js serve
 ```
 
-The Control Room binds to `127.0.0.1:8790` by default and exposes projects, events, campaigns, version history, claim provenance, draft editing/regeneration, approvals, editorial scheduling, and PAG handoff state.
+The Control Room binds to `127.0.0.1:8790` by default and exposes projects, automated capture health, events, campaigns, version history, claim provenance, draft editing/regeneration, approvals, editorial scheduling, and PAG handoff state.
 
 Remote binding is an explicit opt-in and is **not** an authentication model. See [Dashboard security](./docs/DASHBOARD.md).
 
@@ -108,6 +109,7 @@ BIP-AI is licensed under the [Apache License 2.0](./LICENSE). See [NOTICE](./NOT
 - [PAG integration](./docs/PAG.md)
 - [Drafting providers](./docs/DRAFTING.md)
 - [Control Room](./docs/DASHBOARD.md)
+- [Automated local capture](./docs/CAPTURE.md)
 - [External / WhatsApp adapters](./docs/EXTERNAL-ADAPTERS.md)
 - [Dependency policy](./docs/DEPENDENCY-POLICY.md)
 - [Release policy](./docs/RELEASING.md)
