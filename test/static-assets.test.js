@@ -16,3 +16,14 @@ test('CLI JavaScript parses successfully', () => {
   });
   assert.equal(result.status, 0, result.stderr || result.stdout);
 });
+
+
+test('Performance browser JavaScript parses successfully', () => {
+  const result = spawnSync(process.execPath, ['--check', 'public/performance.js'], { encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+});
+
+test('BIP-AI wrapper JavaScript parses successfully', () => {
+  const result = spawnSync(process.execPath, ['--check', 'src/bip-ai.js'], { encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+});
