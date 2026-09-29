@@ -57,16 +57,16 @@
     const root=$('performance-review'),count=$('performance-review-count');
     if(!root||!count)return;
     const project=projectId();
-    if(!project){
-      count.textContent='Choose a project';
-      root.innerHTML='<div class="empty-list"><strong>Choose one project</strong><span>Use the project filter to inspect ambiguous or unlinked performance snapshots.</span></div>';
-      return;
-    }
     root.innerHTML='<div class="loading-state">Loading performance review queue…</div>';
     try{
-      const data=await api(`/api/projects/${encodeURIComponent(project)}/performance/review`);
+      const path=project
+        ? `/api/projects/${encodeURIComponent(project)}/performance/review`
+        : '/api/performance/review';
+      const data=await api(path);
       const items=data.snapshots||[];
-      count.textContent=`${items.length} review item${items.length===1?'':'s'}`;
+      count.textContent=project
+        ? `${items.length} review item${items.length===1?'':'s'} · selected project`
+        : `${items.length} review item${items.length===1?'':'s'} · all projects`;
       root.innerHTML=items.length?items.map(item=>snapshotCard(item,{review:true})).join('')
         :'<div class="empty-list"><strong>No performance items need review</strong><span>Ambiguous or unlinked imports will appear here.</span></div>';
     }catch(error){
