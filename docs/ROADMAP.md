@@ -173,7 +173,7 @@ The goal of v0.3.0 is to make BIP-AI increasingly useful over time by adding evi
   - privacy-aware stale-context invalidation
   - Control Room story-arc/provenance views
 
-- [ ] **[BIP-018 — Local editorial preference learning](https://github.com/victorkay97/BIP-AI/issues/55)**
+- [x] **[BIP-018 — Local editorial preference learning](https://github.com/victorkay97/BIP-AI/issues/55)**
   - learn bounded style preferences from immutable edit/approval history
   - project-scoped by default
   - inspect/reset/disable controls
