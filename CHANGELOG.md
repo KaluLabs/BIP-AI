@@ -8,6 +8,7 @@ The project follows Semantic Versioning once releases are tagged. During the `0.
 
 ### Added
 
+- Append-only, versioned content-performance snapshots with exact campaign/version/contentHash linkage, deterministic deduplication, manual/JSON and adapter ingestion, Control Room history/review views, and credential-free source metadata.
 - Project-scoped editorial preference learning from operator edits and immutable approval outcomes, with bounded drafting hints and Control Room/CLI inspect-reset-disable controls.
 - Project-scoped narrative memory with deterministic rebuilds, evidence-bound story arcs, privacy-aware draft context, and Control Room/CLI archive-forget-restore controls.
 
