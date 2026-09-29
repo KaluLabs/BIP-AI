@@ -192,7 +192,12 @@ export function buildPerformanceSnapshot(store,input,options={}){
     platform:normalized.platform,
     observedAt:normalized.observedAt,
     metrics:normalized.metrics,
-    link:linked?link:normalized.claimedLink
+    link:linked?{
+      projectId:link.projectId,
+      campaignId:link.campaignId,
+      campaignVersion:link.campaignVersion,
+      contentHash:link.contentHash
+    }:normalized.claimedLink
   };
   const fingerprint=digest(identity);
   const createdAt=normalized.collectedAt;
@@ -201,7 +206,12 @@ export function buildPerformanceSnapshot(store,input,options={}){
     id:`perf_${fingerprint.slice(0,24)}`,
     fingerprint,
     status:linked?'linked':'review',
-    projectId:linked?link.projectId:(normalized.claimedLink.projectId||null),
+    projectId:linked?link.projectId:(
+      normalized.claimedLink.projectId||
+      publication?.projectId||
+      (normalized.claimedLink.campaignId?store.getCampaign(normalized.claimedLink.campaignId)?.projectId:null)||
+      null
+    ),
     platform:normalized.platform,
     campaignId:linked?link.campaignId:null,
     campaignVersion:linked?link.campaignVersion:null,
