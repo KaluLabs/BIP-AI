@@ -2,7 +2,7 @@ import {createHash} from 'node:crypto';
 import {CONTENT_PERFORMANCE_SCHEMA_VERSION,appendPerformanceSnapshot,listPerformanceSnapshots} from './performance-db.js';
 
 const METRICS=['impressions','views','reactions','likes','replies','comments','reposts','shares','clicks'];
-const CREDENTIAL_KEY=/(?:^|[_-])(token|secret|password|authorization|cookie|credential|session)(?:$|[_-])|api[_-]?key/i;
+const CREDENTIAL_KEY=/(token|secret|password|authorization|cookie|credential|session|api[_-]?key)/i;
 
 function stable(value){
   if(Array.isArray(value))return value.map(stable);
