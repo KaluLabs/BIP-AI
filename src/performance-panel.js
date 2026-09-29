@@ -2,11 +2,11 @@ export const PERFORMANCE_REVIEW_PANEL=`
 <section class="panel" id="performance-review-panel">
   <div class="panel-head panel-head-wrap">
     <div><p class="eyebrow">OUTCOME FEEDBACK</p><h2>Performance review</h2></div>
-    <span id="performance-review-count" class="pill muted">Choose a project</span>
+    <span id="performance-review-count" class="pill muted">Review queue</span>
   </div>
   <p class="subtle">Snapshots that cannot be verified against an exact campaign/version/content hash are held here for review instead of being attached to analytics.</p>
   <div id="performance-review" class="narrative-memory">
-    <div class="empty-list"><strong>Choose one project</strong><span>Use the project filter to inspect ambiguous or unlinked performance snapshots.</span></div>
+    <div class="empty-list"><strong>Loading review queue</strong><span>Choose a project to narrow ambiguous or unlinked snapshots.</span></div>
   </div>
 </section>
 `;
