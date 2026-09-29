@@ -183,7 +183,7 @@ BIP-018 depends on the v0.3 context boundary established by BIP-017.
 
 ### Wave B — feedback loop
 
-- [ ] **[BIP-019 — Content performance feedback ingestion](https://github.com/victorkay97/BIP-AI/issues/56)**
+- [x] **[BIP-019 — Content performance feedback ingestion](https://github.com/victorkay97/BIP-AI/issues/56)**
   - transport-neutral performance snapshots
   - exact campaign/version/contentHash linkage
   - append-only/auditable outcome history
