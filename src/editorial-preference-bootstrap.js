@@ -1,8 +1,10 @@
 import http from 'node:http';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { handleEditorialPreferenceApi } from './editorial-preference-api.js';
-import { injectEditorialPreferenceUi } from './editorial-preference-panel.js';
+import {readFileSync} from 'node:fs';
+import {fileURLToPath} from 'node:url';
+import {handleEditorialPreferenceApi} from './editorial-preference-api.js';
+import {injectEditorialPreferenceUi} from './editorial-preference-panel.js';
+import {handlePerformanceApi} from './performance-api.js';
+import {injectPerformanceUi} from './performance-panel.js';
 
 const INDEX=fileURLToPath(new URL('../public/index.html',import.meta.url));
 const original=http.createServer.bind(http);
@@ -19,10 +21,11 @@ http.createServer=function(options,listener){
   const wrapped=async(req,res)=>{
     harden(res);
     try{
+      if(await handlePerformanceApi(req,res))return;
       if(await handleEditorialPreferenceApi(req,res))return;
       const path=new URL(req.url,'http://localhost').pathname;
       if(req.method==='GET'&&path==='/'){
-        const html=injectEditorialPreferenceUi(readFileSync(INDEX,'utf8'));
+        const html=injectPerformanceUi(injectEditorialPreferenceUi(readFileSync(INDEX,'utf8')));
         res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store'});
         res.end(html);return;
       }
