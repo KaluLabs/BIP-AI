@@ -5,27 +5,18 @@
   "type": "module",
   "description": "Building in Public AI: evidence-first, privacy-aware project activity to social draft pipeline.",
   "license": "Apache-2.0",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/victorkay97/BIP-AI.git"
-  },
-  "bugs": {
-    "url": "https://github.com/victorkay97/BIP-AI/issues"
-  },
-  "bin": {
-    "bip-ai": "./src/cli.js"
-  },
-  "engines": {
-    "node": ">=22.5.0"
-  },
+  "repository": {"type":"git","url":"https://github.com/victorkay97/BIP-AI.git"},
+  "bugs": {"url":"https://github.com/victorkay97/BIP-AI/issues"},
+  "bin": {"bip-ai":"./src/bip-ai.js"},
+  "engines": {"node":">=22.5.0"},
   "scripts": {
-    "start": "node ./src/cli.js",
-    "serve": "node ./src/cli.js serve",
-    "test": "node --test",
-    "setup": "node ./src/cli.js setup",
-    "doctor": "node ./src/cli.js doctor",
-    "dist": "node ./scripts/build-release-artifacts.mjs",
-    "verify:distribution": "bash ./scripts/verify-distribution.sh",
-    "audit:release": "node ./scripts/audit-release-tree.mjs"
+    "start":"node ./src/bip-ai.js",
+    "serve":"node ./src/bip-ai.js serve",
+    "test":"node --test",
+    "setup":"node ./src/cli.js setup",
+    "doctor":"node ./src/cli.js doctor",
+    "dist":"node ./scripts/build-release-artifacts.mjs",
+    "verify:distribution":"bash ./scripts/verify-distribution.sh",
+    "audit:release":"node ./scripts/audit-release-tree.mjs"
   }
 }

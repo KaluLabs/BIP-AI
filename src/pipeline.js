@@ -1,5 +1,7 @@
 import { createCampaign, evaluatePrivacy, evaluateStoryworthiness, fingerprintEvent, normalizeProjectEvent } from './core.js';
 import { getNarrativeMemory, narrativeContextClaims, rebuildNarrativeMemory } from './narrative-memory.js';
+import { buildEditorialPreferenceProfile } from './editorial-preference-profile.js';
+import { applyPreferenceHintsToCampaign } from './editorial-preference-drafts.js';
 
 export class BipAI {
   constructor({ store, storyThreshold = 3 } = {}) {
@@ -30,7 +32,11 @@ export class BipAI {
       return { accepted: true, duplicate: false, event, evaluation, privacy, campaign: null, reason: 'below_story_threshold' };
     }
 
-    const campaign = createCampaign(event, evaluation, privacy, narrativeContext);
+    const preferences = buildEditorialPreferenceProfile(this.store, event.projectId);
+    const campaign = applyPreferenceHintsToCampaign(
+      createCampaign(event, evaluation, privacy, narrativeContext),
+      preferences
+    );
     this.store.saveCampaign(campaign);
     rebuildNarrativeMemory(this.store, event.projectId);
     return { accepted: true, duplicate: false, event, evaluation, privacy, campaign };

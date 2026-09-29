@@ -41,5 +41,5 @@ EXPOSE 8790
 HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=5 \
   CMD ["node", "-e", "fetch('http://127.0.0.1:8790/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
 
-ENTRYPOINT ["node", "/app/src/cli.js"]
+ENTRYPOINT ["node", "/app/src/bip-ai.js"]
 CMD ["serve"]
